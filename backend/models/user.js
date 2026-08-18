@@ -70,9 +70,17 @@ const UserSchema = new mongoose.Schema({
 		type: Number,
 		default: 0
 	},
+	// 1.1, matching account and admin. This read 1.2 here since the first
+	// commit, so a user document with no `ver` of its own hydrated as 1.2 in
+	// backend and 1.1 in the other two - the same record answering differently
+	// depending on which service was asked.
+	//
+	// 1.1 is the value that is actually true: account owns every write, and
+	// every stored user has ver 1.1. Nothing reads this field in any service,
+	// which is the only reason the disagreement never surfaced as a bug.
 	ver: {
 		type: Number,
-		default: 1.2
+		default: 1.1
 	},
 	sysCount: Number,
 	lastLogin: { type : Date, default: Date.now }

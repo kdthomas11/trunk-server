@@ -42,7 +42,23 @@ const MODELS = [
 ];
 
 /**
- * Top-level keys of the object literal passed to mongoose.Schema(...).
+ * Strips comments and collapses whitespace, so two definitions that differ only
+ * in formatting or in what they explain compare equal. The comments around these
+ * fields are deliberately not identical between services - each says why that
+ * service carries the field - and none of that should read as drift.
+ */
+function normalise(text) {
+	return text
+		.replace(/\/\*[\s\S]*?\*\//g, " ")
+		.replace(/\/\/[^\n]*/g, " ")
+		.replace(/\s+/g, " ")
+		.replace(/,\s*$/, "")
+		.trim();
+}
+
+/**
+ * Top-level entries of the object literal passed to mongoose.Schema(...), as
+ * { name, definition } in source order.
  *
  * Walks the literal counting brace depth rather than matching a regex against
  * the whole file, so nested definitions (local.email, and anything with its own
@@ -59,6 +75,14 @@ function schemaFields(source) {
 	let inBlockComment = false;
 	let quote = null;
 	const fields = [];
+	// The field whose definition we are currently inside, if any.
+	let pending = null;
+
+	const close = (end) => {
+		if (!pending) return;
+		fields.push({ name: pending.name, definition: normalise(source.slice(pending.start, end)) });
+		pending = null;
+	};
 
 	for (let i = open; i < source.length; i++) {
 		const ch = source[i];
@@ -84,17 +108,20 @@ function schemaFields(source) {
 		if (ch === "{" || ch === "[") { depth++; continue; }
 		if (ch === "}" || ch === "]") {
 			depth--;
-			if (depth === 0) break;
+			if (depth === 0) { close(i); break; }
 			continue;
 		}
 
+		// A comma back at depth 1 ends the definition that was in progress.
+		if (depth === 1 && ch === ",") { close(i); continue; }
+
 		// A field name is an identifier at depth 1 followed by a colon.
-		if (depth === 1 && /[A-Za-z_$]/.test(ch)) {
+		if (depth === 1 && !pending && /[A-Za-z_$]/.test(ch)) {
 			const rest = source.slice(i);
 			const match = rest.match(/^([A-Za-z_$][\w$]*)\s*:/);
 			if (match) {
-				fields.push(match[1]);
-				i += match[1].length - 1;
+				pending = { name: match[1], start: i + match[0].length };
+				i += match[0].length - 1;
 			}
 		}
 	}
@@ -119,7 +146,7 @@ for (const model of MODELS) {
 		console.error(`FAIL  could not find a mongoose.Schema({...}) literal in ${model.file}`);
 		process.exit(1);
 	}
-	parsed.push({ ...model, fields });
+	parsed.push({ ...model, fields, names: fields.map(f => f.name) });
 }
 
 // --- 1. duplicate keys within one schema ------------------------------------
@@ -127,7 +154,7 @@ for (const model of MODELS) {
 for (const model of parsed) {
 	const seen = new Set();
 	const duplicates = new Set();
-	for (const field of model.fields) {
+	for (const field of model.names) {
 		if (seen.has(field)) duplicates.add(field);
 		seen.add(field);
 	}
@@ -146,13 +173,13 @@ for (const model of parsed) {
 
 // --- 2. the three field sets must match -------------------------------------
 
-const union = [...new Set(parsed.flatMap(m => m.fields))].sort();
+const union = [...new Set(parsed.flatMap(m => m.names))].sort();
 const missing = [];
 
 for (const field of union) {
-	const absent = parsed.filter(m => !m.fields.includes(field)).map(m => m.service);
+	const absent = parsed.filter(m => !m.names.includes(field)).map(m => m.service);
 	if (absent.length > 0) {
-		missing.push({ field, absent, present: parsed.filter(m => m.fields.includes(field)).map(m => m.service) });
+		missing.push({ field, absent, present: parsed.filter(m => m.names.includes(field)).map(m => m.service) });
 	}
 }
 
@@ -170,12 +197,52 @@ if (missing.length > 0) {
 	]);
 }
 
+// --- 3. fields present everywhere must be defined the same way --------------
+//
+// Matching names are not enough. `ver` defaulted to 1.2 in backend and 1.1 in
+// the other two since the first commit, so a user document with no `ver` of its
+// own hydrated differently depending on which service was asked - one record,
+// two answers, nothing erroring. A missing `unique` or a different enum would
+// behave the same way.
+
+const differing = [];
+
+for (const field of union) {
+	// Only compare where every service has it; check 2 already reported the rest.
+	if (missing.some(m => m.field === field)) continue;
+
+	const byDefinition = new Map();
+	for (const model of parsed) {
+		const definition = model.fields.find(f => f.name === field).definition;
+		if (!byDefinition.has(definition)) byDefinition.set(definition, []);
+		byDefinition.get(definition).push(model.service);
+	}
+	if (byDefinition.size > 1) differing.push({ field, variants: byDefinition });
+}
+
+if (differing.length > 0) {
+	failed = true;
+	report(["", "FAIL  the three User schemas define the same field differently:", ""]);
+	for (const row of differing) {
+		report([`      ${row.field}`]);
+		for (const [definition, services] of row.variants) {
+			report([`        ${services.join(", ").padEnd(24)} ${definition}`]);
+		}
+		report([""]);
+	}
+	report([
+		"      Same name, different meaning. A default, a type or a constraint that",
+		"      disagrees makes one record read differently depending on which service",
+		"      loaded it, and nothing errors when it does."
+	]);
+}
+
 if (failed) {
 	console.log("");
 	process.exit(1);
 }
 
-console.log(`OK  all ${parsed.length} User schemas declare the same ${union.length} fields, with no duplicates.`);
+console.log(`OK  all ${parsed.length} User schemas declare the same ${union.length} fields, defined identically, with no duplicates.`);
 for (const model of parsed) {
 	console.log(`      ${model.service.padEnd(8)} ${model.fields.length} fields  ${model.file}`);
 }
