@@ -40,7 +40,6 @@ const UserSchema = new mongoose.Schema({
 	// Optional: much of the world has no state or province.
 	state: String,
 	country: String,
-	email: String,
 	resetPasswordToken: String,
 	resetPasswordTTL: Date,
 	confirmEmail: {
