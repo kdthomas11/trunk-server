@@ -54,6 +54,8 @@ const UserSchema = new mongoose.Schema({
 		type: Boolean,
 		default: false
 	},
+	disabledAt: Date,
+	disabledReason: String,
 	// Read-only here - the account service owns writes. Must exist in this
 	// schema all the same: a field missing from it is silently dropped from
 	// query results, so req.listener.plan would be undefined and every account
@@ -63,6 +65,8 @@ const UserSchema = new mongoose.Schema({
 		enum: ['free', 'supporter'],
 		default: 'free'
 	},
+	planGrantedAt: Date,
+	planGrantedBy: mongoose.Schema.Types.ObjectId,
 	terms: {
 		type: Number,
 		default: 0
