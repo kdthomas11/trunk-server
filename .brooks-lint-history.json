@@ -1,0 +1,18 @@
+[
+  {
+    "date": "2026-08-18",
+    "mode": "Health Dashboard",
+    "score": 72,
+    "scope": "whole project (branch local-dev, 19338 lines app code, 5 services)",
+    "findings": { "critical": 5, "warning": 2, "suggestion": 1 },
+    "reported": { "critical": 3, "warning": 1, "suggestion": 1 },
+    "dimensions": {
+      "codeQuality": { "score": null, "skipped": "clean working tree, no diff" },
+      "architecture": { "score": 80, "critical": 1, "warning": 1, "suggestion": 0 },
+      "debt":         { "score": 69, "critical": 2, "warning": 0, "suggestion": 1 },
+      "test":         { "score": 65, "critical": 2, "warning": 1, "suggestion": 0 }
+    },
+    "weights": { "architecture": 0.40, "debt": 0.33, "test": 0.27 },
+    "note": "Scores reflect the codebase as scanned, before the login() return fix landed."
+  }
+]
