@@ -11,7 +11,7 @@
  * A duplicate key in an object literal is invisible on reading. Asserting the
  * resulting options is the only way to notice it, so these tests assert them.
  *
- *   docker exec -w /app hamrecorder-account-1 sh -c "node --test test/*.test.js"
+ *   docker exec -w /app hamrecorder-account-1 node test/run.js
  */
 const { test, describe } = require("node:test");
 const assert = require("node:assert/strict");

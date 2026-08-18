@@ -42,7 +42,12 @@ jobs:
       - run: npm ci --omit=dev
         working-directory: account
 
-      - run: npm run test:server
+      # Goes through server/test/run.js rather than `node --test` directly. A
+      # pattern that matches no files reports "tests 0" and exits 0, so a moved
+      # file or a mistyped glob would switch the suite off and leave this job
+      # green. run.js fails if fewer than its FLOOR tests actually ran.
+      - name: Run the account suite (fails if tests go missing)
+        run: npm run test:server
         working-directory: account
 
 # Not wired up yet: backend/test/spec.js. It declares "test": "mocha" but

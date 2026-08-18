@@ -7,7 +7,7 @@
  *
  * Run inside the account container, where the runtime dependencies live:
  *
- *   docker exec -w /app hamrecorder-account-1 sh -c "node --test test/*.test.js"
+ *   docker exec -w /app hamrecorder-account-1 node test/run.js
  *
  * No test framework is involved. The runtime image is built with
  * `npm ci --omit=dev`, so a devDependency would simply not be installed there;
