@@ -4,15 +4,90 @@
     "mode": "Health Dashboard",
     "score": 72,
     "scope": "whole project (branch local-dev, 19338 lines app code, 5 services)",
-    "findings": { "critical": 5, "warning": 2, "suggestion": 1 },
-    "reported": { "critical": 3, "warning": 1, "suggestion": 1 },
-    "dimensions": {
-      "codeQuality": { "score": null, "skipped": "clean working tree, no diff" },
-      "architecture": { "score": 80, "critical": 1, "warning": 1, "suggestion": 0 },
-      "debt":         { "score": 69, "critical": 2, "warning": 0, "suggestion": 1 },
-      "test":         { "score": 65, "critical": 2, "warning": 1, "suggestion": 0 }
+    "findings": {
+      "critical": 5,
+      "warning": 2,
+      "suggestion": 1
     },
-    "weights": { "architecture": 0.40, "debt": 0.33, "test": 0.27 },
+    "reported": {
+      "critical": 3,
+      "warning": 1,
+      "suggestion": 1
+    },
+    "dimensions": {
+      "codeQuality": {
+        "score": null,
+        "skipped": "clean working tree, no diff"
+      },
+      "architecture": {
+        "score": 80,
+        "critical": 1,
+        "warning": 1,
+        "suggestion": 0
+      },
+      "debt": {
+        "score": 69,
+        "critical": 2,
+        "warning": 0,
+        "suggestion": 1
+      },
+      "test": {
+        "score": 65,
+        "critical": 2,
+        "warning": 1,
+        "suggestion": 0
+      }
+    },
+    "weights": {
+      "architecture": 0.4,
+      "debt": 0.33,
+      "test": 0.27
+    },
     "note": "Scores reflect the codebase as scanned, before the login() return fix landed."
+  },
+  {
+    "date": "2026-08-18",
+    "mode": "Health Dashboard",
+    "score": 89,
+    "scope": "whole project (branch local-dev @ 43b4fde, 19338 lines app code, 5 services)",
+    "findings": {
+      "critical": 1,
+      "warning": 5,
+      "suggestion": 2
+    },
+    "dimensions": {
+      "codeQuality": {
+        "score": 89,
+        "critical": 0,
+        "warning": 2,
+        "suggestion": 1,
+        "scope": "git diff master...local-dev, 131 source files"
+      },
+      "architecture": {
+        "score": 95,
+        "critical": 0,
+        "warning": 1,
+        "suggestion": 0
+      },
+      "debt": {
+        "score": 89,
+        "critical": 0,
+        "warning": 2,
+        "suggestion": 1
+      },
+      "test": {
+        "score": 80,
+        "critical": 1,
+        "warning": 1,
+        "suggestion": 0
+      }
+    },
+    "weights": {
+      "codeQuality": 0.25,
+      "architecture": 0.3,
+      "debt": 0.25,
+      "test": 0.2
+    },
+    "note": "PR dimension included this run via the git diff main...HEAD fallback, which the first run did not apply. Composite is 89 either way - recomputed with PR excluded and the first run's redistributed weights it is also 89 - so the 72 to 89 trend is not an artefact of the scope change."
   }
 ]
