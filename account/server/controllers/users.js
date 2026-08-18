@@ -138,7 +138,7 @@ exports.login = function (req, res, next) {
         // req.login callback, so the throw escapes as an uncaught exception
         // rather than reaching the error handler. Signing in with an
         // unconfirmed address took down the account process.
-        req.logout(function (err) {
+        return req.logout(function (err) {
           if (err) { return next(err); }
           res.clearCookie('sessionId', { domain: cookie_domain, path: '/' });
           return res.json({
