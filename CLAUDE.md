@@ -34,6 +34,9 @@ Branch is `local-dev`. `origin` is the fork, `upstream` is openmhz.
 > `git diff pre-transcription` is the whole of that feature and
 > `git reset --hard pre-transcription` is the way back.
 >
+> Two later checkpoints exist for the same reason: `pre-node24` before the
+> runtime upgrade, and `pre-deps-refresh` before the dependency refresh.
+>
 > `local-dev` tracks `origin/local-dev` and both the branch and the tag are
 > pushed. WSL git authenticates through the Windows Git Credential Manager
 > (`git config --global credential.helper` points at
@@ -84,13 +87,64 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/account:/w" -w 
 
 `node:24-alpine3.24` for account/admin/frontend, `node:24-bookworm` for backend —
 match the service's own base image, which is pinned in its Dockerfile.
-Note that `--package-lock-only` only *satisfies* the existing lock; delete the
-lock first if you want versions genuinely refreshed.
 
-The lockfiles were generated under npm 9 and are read by npm 11 without
-complaint; they were deliberately **not** regenerated during the Node 24
-upgrade. Refreshing every dependency is a separate change from changing the
-runtime, and bundling the two would make a failure impossible to attribute.
+**`npm install --package-lock-only` only *satisfies* the existing lock.** It
+applies version changes you made in `package.json` and otherwise leaves every
+caret range pinned exactly where it already was. To actually move ranges to
+their newest in-major release, run `npm update --package-lock-only` as well.
+Missing this is easy: the lock churns by hundreds of lines from the explicit
+edits and looks refreshed while `react`, `@reduxjs/toolkit` and `socket.io-client`
+have not moved at all.
+
+Rebuilding is not enough on its own either. `local-compose.yml` mounts
+`/home/app/node_modules` and `/app/node_modules` as anonymous volumes, and those
+survive `up` after a rebuild — the container keeps the old tree and the new
+lockfile has no effect. Use `./docker-local.sh down -v` before `build`. That is
+safe: mongo and MinIO keep their data in host bind mounts under `data/`, and
+there are no named volumes anywhere in the compose files.
+
+#### What is held back, and why
+
+Everything runs at the newest release of the major it is on. Four majors were
+taken deliberately, each because it cleared a live advisory and its API was
+verified unchanged first: `bcrypt` 5→6 (account, admin), `multer` 1.4.5-lts→2
+(admin), `connect-mongo` 4→5 (admin), and dropping `passport-twitter`, whose
+`xmldom` critical has no fix in any published version.
+
+These are held on purpose:
+
+- **`express` stays on 4.x.** 4.22.2 carries the fixes; 5 is a rewrite of the
+  router and error handling across three services.
+- **`mongoose` stays on 7.x in account/admin** (backend is on 8). 7.8.12 clears
+  the critical. Version skew across services already exists and is harmless —
+  they share a database, not a driver.
+- **`mongodb` stays on 4.x in frontend.** `frontend/server/index.js` imports
+  `ObjectID`, which v6 removed.
+- **`react` 18, `react-router` 6, `@reduxjs/toolkit` 1.9, `react-redux` 8,
+  `date-fns` 2, `@visx` 3** — each is its own migration.
+- **`geoip-lite` stays on 1.4.10.** 2.0.3 would clear a moderate and a high, but
+  it measurably loses city and region data: on four sample US residential IPs,
+  two dropped from full city to country-only. The login audit trail exists to
+  answer "where did this come from", so the advisories are the better trade.
+  Neither is reachable here anyway — one is XSS in `Address6` HTML output that
+  geoip-lite never calls, the other an SSRF categorisation bug in a library this
+  app only ever reads from, never dials.
+- **OpenTelemetry stays where it is.** Every one of the backend's 46 advisories
+  is inside the `@opentelemetry/auto-instrumentations-node` tree and nothing
+  else. Clearing them means `@opentelemetry/resources` 1.x→2.x, which removed
+  `envDetectorSync` / `hostDetectorSync` / `processDetectorSync` — all three are
+  imported by `backend/agents/otel-tracing.js`, which `index.js` loads on line 1
+  and which patches the ingest hot path. That is a code migration, not a version
+  bump.
+
+After this pass the runtime trees are: **admin 0 advisories, account 2** (both
+the geoip-lite pair above), **frontend 30** and **backend 46**. The frontend
+count is entirely `react-scripts`: unlike account and admin it lists
+`react-scripts` under `dependencies` rather than `devDependencies`, so the whole
+Create React App build toolchain is installed into the production image and
+counts against it. Moving it, and adding `--omit=dev` to the production stage of
+the three React Dockerfiles, would drop that to a handful — worth doing, but it
+is a build change rather than a dependency change.
 
 There are deliberately no `yarn.lock` files. Nothing read them, and npm rewrites
 a yarn.lock as a side effect whenever it finds one, so they generated endless
@@ -322,6 +376,24 @@ currently all of them.
   rare oddity.
 - The dead `bcrypt-nodejs` code in `backend/models/user.js` and
   `systemSchema.js` can be deleted; nothing in the backend calls it.
+- `account/server/models/system.js` does `require('bcrypt-nodejs')` — and
+  `bcrypt-nodejs` is **not** in account's `package.json`. The file also discards
+  the require's return value and then calls a bare `bcrypt`, so it is broken
+  twice over. It survives only because nothing loads it:
+  `account/server/controllers/systems.js` requires it but is never routed from
+  `index.js`. Route it and the account service dies at startup.
+- **`react-scripts` sits in `dependencies` for frontend**, not
+  `devDependencies` as it does for account and admin, so the production image
+  installs the entire CRA build toolchain — and its 30 advisories land in the
+  shipped tree. Move it, and add `--omit=dev` to the production stage of all
+  three React Dockerfiles.
+- **The OpenTelemetry migration.** All 46 backend advisories live in this one
+  tree; clearing them means rewriting `backend/agents/otel-tracing.js` for
+  `@opentelemetry/resources` 2.x. Worth pairing with a look at whether
+  `auto-instrumentations-node` is even the right dependency: it loads
+  instrumentation for fastify, hapi, pg and Alibaba Cloud, none of which this
+  app uses, and the exporter has no collector to talk to (`OTEL_SDK_DISABLED` is
+  set locally purely to stop the connect-retry spam).
 - `account/server/config/express.js` falls back to
   `Access-Control-Allow-Origin: *` alongside `Allow-Credentials: true` for
   unknown origins. Browsers reject that combination, so it is not a leak, but it

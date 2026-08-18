@@ -132,7 +132,12 @@ exports.login = function (req, res, next) {
         });
       }
       if (!user.confirmEmail) {
-        req.logout();
+        // Only the callback form. Since passport 0.6 a bare req.logout() throws
+        // "req#logout requires a callback function" whenever a session manager
+        // is attached, which it always is here - and this sits inside a
+        // req.login callback, so the throw escapes as an uncaught exception
+        // rather than reaching the error handler. Signing in with an
+        // unconfirmed address took down the account process.
         req.logout(function (err) {
           if (err) { return next(err); }
           res.clearCookie('sessionId', { domain: cookie_domain, path: '/' });
