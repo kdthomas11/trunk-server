@@ -102,7 +102,6 @@ async function get_calls(query, numResults, middleDate, res, listener) {
         srcList: true,
         freq: true,
         patches: true,
-        star: true,
         len: true,
         url: true,
         // Everyone needs the status, so the pane can say "not yours" rather than

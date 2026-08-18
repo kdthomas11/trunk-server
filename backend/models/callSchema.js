@@ -28,10 +28,6 @@ const callSchema = mongoose.Schema({
   path: String,
   len: Number,
   patches: [Number],
-  star: {
-		type: Number,
-		default: 0
-	},
   srcList: [srcSchema],
 
   // ---- Transcription -------------------------------------------------------
