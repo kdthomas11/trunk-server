@@ -25,6 +25,17 @@ const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const bcrypt = require("bcrypt");
 
+// Must be set before controllers/users.js is required: it constructs a Mailjet
+// client at module load, and node-mailjet throws "Mailjet API_KEY is required"
+// when the key is empty. Nothing here sends mail - these only need to be
+// non-empty for the require to succeed. Conditional so a real environment wins.
+//
+// Without this the suite passes inside the container, where compose injects the
+// real values from test.env, and fails everywhere else - a dependency on
+// invisible external state, which is the thing that makes a suite untrustworthy.
+process.env.MAILJET_KEY = process.env.MAILJET_KEY || "test-key";
+process.env.MAILJET_SECRET = process.env.MAILJET_SECRET || "test-secret";
+
 const User = require("../models/user");
 const loginEvents = require("../controllers/login-events");
 const configurePassport = require("../config/passport");

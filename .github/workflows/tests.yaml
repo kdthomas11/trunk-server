@@ -1,0 +1,51 @@
+# Runs the test suites. Until this existed nothing ran them: the only workflow
+# in this repo builds and pushes images, so backend/test/spec.js had never
+# executed in CI, and neither had anything else.
+#
+# Deliberately runs on every branch, not just master. A test that only runs
+# after merge tells you about a problem you already shipped.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # No dependencies and no services - just reads the three model files. Kept as
+  # its own job so a drift failure is legible on its own rather than buried in
+  # a test log.
+  user-schema-drift:
+    name: User schema drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/check-user-schema-drift.js
+
+  account:
+    name: Account server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: account/package-lock.json
+
+      # --omit=dev matches how the runtime image is built. The tests use node's
+      # built-in runner and only the production dependencies, so this is both
+      # faster than a full install and a check that they have not quietly picked
+      # up a devDependency that would not exist in the container.
+      - run: npm ci --omit=dev
+        working-directory: account
+
+      - run: npm run test:server
+        working-directory: account
+
+# Not wired up yet: backend/test/spec.js. It declares "test": "mocha" but
+# neither mocha nor supertest is in backend/package.json, so it cannot run from
+# a clean install, and it boots the real server - it would need a mongo service
+# container as well. Fixing that is a separate piece of work.
