@@ -1,5 +1,4 @@
 var mongoose = require('mongoose');
-var bcrypt   = require('bcrypt-nodejs');
 var User = require('./user');
 
 const systemSchema = mongoose.Schema({
@@ -26,12 +25,13 @@ const systemSchema = mongoose.Schema({
     key: String
   });
 
-  systemSchema.methods.generateHash = function(password) {
-    return bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
-  };
-  
-  systemSchema.methods.validPassword = function(password) {
-    return bcrypt.compareSync(password, this.local.password);
-  };
+  // generateHash and validPassword used to sit here, hashing a system's upload
+  // credential with bcrypt-nodejs. Neither was ever called: uploads authenticate
+  // in controllers/uploads.js by comparing the submitted api_key against the
+  // plaintext `key` field above. validPassword could not have worked anyway - it
+  // read this.local.password, and there is no `local` on this schema.
+  //
+  // That the API key is stored in plaintext is a real question, but a separate
+  // one from removing code that never ran.
 
   module.exports = systemSchema;

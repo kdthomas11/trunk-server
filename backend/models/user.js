@@ -1,6 +1,5 @@
 // Defining a User Model in mongoose
 // Code modified from https://github.com/sahat/hackathon-starter
-var bcrypt = require("bcrypt-nodejs");
 var mongoose = require("mongoose");
 var crypto = require("crypto");
 
@@ -79,34 +78,19 @@ const UserSchema = new mongoose.Schema({
 	lastLogin: { type : Date, default: Date.now }
 })
 
-/**
- * Password hash middleware.
- */
-UserSchema.pre("save", function(next) {
-	var user = this
-	if (!user.isModified("password")) return next()
-	bcrypt.genSalt(8, (err, salt) => {
-		if (err) return next(err)
-		bcrypt.hash(user.password, salt, null, (err, hash) => {
-			if (err) return next(err)
-			user.password = hash;
-			user.local.password = hash;
-			next()
-		})
-	})
-})
-
-/*
- Defining our own custom document instance method
- */
- UserSchema.methods = {
- 	comparePassword: function(candidatePassword, cb) {
- 		bcrypt.compare(candidatePassword, this.local.password, (err, isMatch) => {
- 			if (err) return cb(err)
- 			cb(null, isMatch)
- 		})
- 	}
- }
+// No password hashing and no comparePassword here on purpose - the same reason
+// admin/server/models/user.js has none. The account service owns every write to
+// a user, and it is the only place that should hash a password. Backend reads
+// users; it never creates or authenticates one, and the listener gate in
+// middleware/auth.js works from the shared session, not from a password.
+//
+// What used to be here was a pre-save hook and a comparePassword, both calling
+// bcrypt-nodejs. Nothing in backend ever reached either: no code path here saves
+// a user, and the only caller of comparePassword anywhere is admin's local
+// strategy, which uses admin's own model. The hook also called
+// bcrypt.hash(data, salt, null, cb) - bcrypt-nodejs' four-argument form, which
+// the maintained bcrypt package does not accept - so it was dead code that
+// pinned an unmaintained dependency and would have thrown if it ever ran.
 
 /**
 * Statics
