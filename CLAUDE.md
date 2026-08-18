@@ -137,14 +137,42 @@ These are held on purpose:
   and which patches the ingest hot path. That is a code migration, not a version
   bump.
 
-After this pass the runtime trees are: **admin 0 advisories, account 2** (both
-the geoip-lite pair above), **frontend 30** and **backend 46**. The frontend
-count is entirely `react-scripts`: unlike account and admin it lists
-`react-scripts` under `dependencies` rather than `devDependencies`, so the whole
-Create React App build toolchain is installed into the production image and
-counts against it. Moving it, and adding `--omit=dev` to the production stage of
-the three React Dockerfiles, would drop that to a handful — worth doing, but it
-is a build change rather than a dependency change.
+After this pass the runtime trees are: **account 2 advisories** (both the
+geoip-lite pair above), **admin 0**, **frontend 0**, **backend 46** (all
+OpenTelemetry).
+
+#### dependencies vs devDependencies
+
+The production stage of the three React Dockerfiles installs with
+`npm ci --omit=dev`, so `dependencies` in those services means **exactly what
+`server/` requires at runtime** and `devDependencies` is the React app plus its
+build and test toolchain. Getting this wrong is silent until the container
+starts, so derive the list by scanning `server/` for bare requires rather than
+by reading the existing split:
+
+```bash
+grep -rhoE "require\(['\"][^./][^'\"]*['\"]\)" account/server --include=*.js
+```
+
+Two packages were reached only by **hoisting** before this: `frontend/server`
+requires `express` without declaring it (npm lifted it out of
+`react-scripts` → `webpack-dev-server`), and `admin/server/controllers/talkgroups.js`
+requires `fs-extra` the same way. `--omit=dev` removes the tree they were
+hoisted from, so both are now declared. `body-parser` was the same story via
+express, and is declared too. Anything added to `server/` from now on must be a
+real entry in `dependencies` — a transitive copy that happens to be present will
+vanish on the next build.
+
+The effect on the shipped images:
+
+| image | before | after | packages |
+|---|---|---|---|
+| frontend | 1.55 GB | 349 MB | 1587 → 93 |
+| admin | 1.44 GB | 355 MB | 1626 → 117 |
+| account | 1.93 GB | 888 MB | 1758 → 144 |
+
+account stays largest because geoip-lite carries its own several-hundred-MB
+city database, which is the point of keeping it.
 
 There are deliberately no `yarn.lock` files. Nothing read them, and npm rewrites
 a yarn.lock as a side effect whenever it finds one, so they generated endless
@@ -185,6 +213,15 @@ cookie.
 always were. Gating them was tried and reverted — see below.
 
 ## Things that will bite you
+
+**The talkgroup CSV import is a full replace, not a merge.**
+`admin/server/controllers/talkgroups.js` opens with
+`Talkgroup.deleteMany({ shortName })` before inserting a single row, so
+uploading a one-line CSV to test the endpoint destroys every talkgroup that
+system had. Nothing in the admin UI says so, and the response only lists what
+was inserted, so the loss is invisible from the outside. Point it at a
+throwaway `shortName`, or dump the collection first. This is how the four
+`2msac` talkgroups in the local database were lost.
 
 **Audio must not be served through the app.** Gating individual audio files
 turned every fetch into a slow credentialed request. WaveSurfer downloads the
@@ -382,11 +419,11 @@ currently all of them.
   twice over. It survives only because nothing loads it:
   `account/server/controllers/systems.js` requires it but is never routed from
   `index.js`. Route it and the account service dies at startup.
-- **`react-scripts` sits in `dependencies` for frontend**, not
-  `devDependencies` as it does for account and admin, so the production image
-  installs the entire CRA build toolchain — and its 30 advisories land in the
-  shipped tree. Move it, and add `--omit=dev` to the production stage of all
-  three React Dockerfiles.
+- `account/src/redux-router/reducers.js` and `account/src/User/user-actions.js`
+  import `connected-react-router`, which **is not installed and is not a
+  dependency of anything**. They only survive because nothing reachable from
+  `src/index.js` imports them, so webpack never visits them. Import either file
+  and the account build fails.
 - **The OpenTelemetry migration.** All 46 backend advisories live in this one
   tree; clearing them means rewriting `backend/agents/otel-tracing.js` for
   `@opentelemetry/resources` 2.x. Worth pairing with a look at whether

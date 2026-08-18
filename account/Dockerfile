@@ -23,7 +23,12 @@ RUN env
 FROM node:24-alpine3.24
 RUN mkdir -p /app/public
 COPY ./package.json ./package-lock.json /tmp/
-RUN cd /tmp && npm ci
+# --omit=dev: this is the runtime stage. It serves server/ and the bundle the
+# build stage already produced, so it needs nothing from the React toolchain.
+# Anything server/ requires must therefore be a real dependency - express here
+# and fs-extra in admin used to resolve only because npm hoisted them out of
+# the react-scripts tree, which this flag removes.
+RUN cd /tmp && npm ci --omit=dev
 RUN cp -a /tmp/node_modules /app
 RUN env
 RUN npm install -g nodemon
