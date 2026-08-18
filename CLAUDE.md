@@ -17,6 +17,13 @@ as the basis for later per-user features (favourites, transcription, AI).
 | `admin/` | 3008 | Feed-operator admin: systems, talkgroups, groups. |
 | `nginx-proxy/` | 80/443 | Vhosts per subdomain, generated from `site.template`. |
 | `mongo`, `minio` | | Database and object storage (S3-compatible, local dev). |
+| `whisper` | 9000 | Speech-to-text. Internal network only, no vhost. |
+| `transcriber` | | Claims calls and feeds them to whisper. Backend's image. |
+
+All Node services run **Node 24 LTS** — `node:24-bookworm` for backend and the
+transcriber, `node:24-alpine3.24` for account, admin and frontend. Both are
+pinned deliberately: a floating `node:24-alpine` would have moved the Alpine
+base underneath the build.
 
 Branch is `local-dev`. `origin` is the fork, `upstream` is openmhz.
 
@@ -72,12 +79,18 @@ or the build fails** — `npm ci` treats disagreement as an error, which is the
 point. There is no npm on the host, so use the image's own Node version:
 
 ```bash
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/account:/w" -w /w node:19-alpine3.16 npm install --package-lock-only
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/account:/w" -w /w node:24-alpine3.24 npm install --package-lock-only
 ```
 
-`node:19-alpine3.16` for account/admin/frontend, `node:22-bookworm` for backend.
+`node:24-alpine3.24` for account/admin/frontend, `node:24-bookworm` for backend —
+match the service's own base image, which is pinned in its Dockerfile.
 Note that `--package-lock-only` only *satisfies* the existing lock; delete the
 lock first if you want versions genuinely refreshed.
+
+The lockfiles were generated under npm 9 and are read by npm 11 without
+complaint; they were deliberately **not** regenerated during the Node 24
+upgrade. Refreshing every dependency is a separate change from changing the
+runtime, and bundling the two would make a failure impossible to attribute.
 
 There are deliberately no `yarn.lock` files. Nothing read them, and npm rewrites
 a yarn.lock as a side effect whenever it finds one, so they generated endless

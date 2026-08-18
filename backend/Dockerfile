@@ -1,7 +1,7 @@
 # docker build -t smartnet-player .
 # do a `git pull` in smartnet-player to update
 
-FROM node:22-bookworm
+FROM node:24-bookworm
 
 # RUN echo deb https://www.deb-multimedia.org bullseye main non-free \
 # 	>>/etc/apt/sources.list && apt-get update -oAcquire::AllowInsecureRepositories=true &&\

@@ -1,5 +1,5 @@
 # build environment
-FROM node:19-alpine3.16 as build
+FROM node:24-alpine3.24 as build
 WORKDIR /app
 ENV PATH /app/node_modules/.bin:$PATH
 ARG REACT_APP_BACKEND_SERVER
@@ -20,7 +20,7 @@ RUN npm run build
 RUN env
 
 # production environment
-FROM node:19-alpine3.16
+FROM node:24-alpine3.24
 RUN mkdir -p /app/public
 COPY ./package.json ./package-lock.json /tmp/
 RUN cd /tmp && npm ci
