@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from 'react-router-dom'
 import SystemCard from "../System/SystemCard";
 import SupportModal from "../Common/SupportModal";
@@ -16,27 +16,17 @@ import {
   Menu,
   Segment,
   Sidebar,
-  Loader,
+
   Statistic,
   Transition,
 
 } from 'semantic-ui-react'
-import { AreaClosed, Line, Bar } from '@visx/shape';
-import { curveMonotoneX } from '@visx/curve';
-import { GridRows, GridColumns } from '@visx/grid';
-import { scaleTime, scaleLinear } from '@visx/scale';
-import {  Tooltip, TooltipWithBounds, defaultStyles } from '@visx/tooltip';
-import { useTooltip, useTooltipInPortal } from '@visx/tooltip';
-import { localPoint } from '@visx/event';
-import { LinearGradient } from '@visx/gradient';
-import { max, extent, bisector } from 'd3-array';
-import { timeFormat } from 'd3-time-format';
-import {  AxisLeft } from '@visx/axis';
 import { useGetSystemsQuery, useGetSiteStatsQuery } from "../features/api/apiSlice";
 import { useSelector, useDispatch } from 'react-redux'
 import { authenticateUser, selectUser } from "../features/user/userSlice";
 import AccountMenu from "../Common/AccountMenu";
 import SignInModal from "../Common/SignInModal";
+import RegisterModal from "../Common/RegisterModal";
 
 /* Responsive component was removed from Semantic UI. This is discussed here: https://github.com/Semantic-Org/Semantic-UI-React/pull/4008 */
 
@@ -57,12 +47,9 @@ const { Media } = AppMedia;
 /* Heads up! HomepageHeading uses inline styling, however it's not the best practice. Use CSS or styled components for
  * such things.
  */
-const HomepageHeading = ({ mobile, onSignIn }) => {
-  // Listening needs an account, so the hero says so and offers both doors
-  // rather than leaving a visitor to discover the requirement on /systems.
-  const user = useSelector(selectUser);
-  const accountServer = process.env.REACT_APP_ACCOUNT_SERVER;
-
+const HomepageHeading = ({ mobile }) => {
+  // No sign-in or register buttons here. The top menu carries both, and both of
+  // these were dead: the modal they needed is opened from there.
   return (
   <Container text style={{ paddingBottom: '0px' }} >
     <Header
@@ -87,19 +74,6 @@ const HomepageHeading = ({ mobile, onSignIn }) => {
         marginBottom: mobile ? '0.5em' : '0em',
       }}
     />
-    {user.hasChecked && !user.authenticated &&
-      <div style={{ marginTop: mobile ? '1em' : '1.8em' }}>
-        <Button primary size={mobile ? 'large' : 'huge'} onClick={onSignIn}>
-          Sign in
-        </Button>
-        <Button
-          size={mobile ? 'large' : 'huge'}
-          style={{ marginLeft: '10px' }}
-          href={`${accountServer}/register`}
-        >
-          Create a free account
-        </Button>
-      </div>}
   </Container>
   );
 }
@@ -125,7 +99,7 @@ const DesktopContainer = (props) => {
   const [fixed, setFixed] = useState(false);
 
 
-  const { children, onSignIn } = props
+  const { children, onSignIn, onRegister } = props
 
   return (
     <Media greaterThanOrEqual="tablet">
@@ -154,14 +128,13 @@ const DesktopContainer = (props) => {
           >
             <Container>
               <Menu.Item ><Header as='h3' inverted>{process.env.REACT_APP_SITE_NAME}</Header></Menu.Item>
-              <Link to="/systems"><Menu.Item link >Listen</Menu.Item></Link>
               <Link to="/about"><Menu.Item link >About</Menu.Item></Link>
               <Menu.Menu position="right">
-                <AccountMenu onSignIn={onSignIn} />
+                <AccountMenu onSignIn={onSignIn} onRegister={onRegister} />
               </Menu.Menu>
             </Container>
           </Menu>
-          <HomepageHeading onSignIn={onSignIn} />
+          <HomepageHeading />
         </Segment>
       </div>
 
@@ -186,7 +159,7 @@ const MobileContainer = (props) => {
   const handleToggle = () => setSidebarOpened(!sidebarOpened)
 
 
-  const { children, onSignIn } = props
+  const { children, onSignIn, onRegister } = props
 
   return (
     <Media lessThan="tablet">
@@ -195,9 +168,8 @@ const MobileContainer = (props) => {
           <Menu.Item active>
             Home
           </Menu.Item>
-          <Menu.Item ><Link to="/systems">Systems</Link></Menu.Item>
           <Menu.Item ><Link to="/about">About</Link></Menu.Item>
-          <AccountMenu onSignIn={onSignIn} />
+          <AccountMenu onSignIn={onSignIn} onRegister={onRegister} />
         </Sidebar>
 
         <Sidebar.Pusher
@@ -229,7 +201,7 @@ const MobileContainer = (props) => {
                   <Menu.Item header>{process.env.REACT_APP_SITE_NAME}</Menu.Item>
                 </Menu>
               </Container>
-              <HomepageHeading mobile onSignIn={onSignIn} />
+              <HomepageHeading mobile />
             </Segment>
           </div>
           {children}
@@ -245,259 +217,17 @@ MobileContainer.propTypes = {
   children: PropTypes.node,
 }
 */
-const ResponsiveContainer = ({ children, onSignIn }) => (
+const ResponsiveContainer = ({ children, onSignIn, onRegister }) => (
   <div>
-    <DesktopContainer onSignIn={onSignIn}>{children}</DesktopContainer>
-    <MobileContainer onSignIn={onSignIn}>{children}</MobileContainer>
+    <DesktopContainer onSignIn={onSignIn} onRegister={onRegister}>{children}</DesktopContainer>
+    <MobileContainer onSignIn={onSignIn} onRegister={onRegister}>{children}</MobileContainer>
   </div>
 )
 
 
 
 
-const BetterSiteStatsChart = ({siteStats}) => {
-  //const props = {data};
 
-  const background = '#9f0000'; //'#3b6978';
-  const background2 = '#9f0000'; //'#204051';
-  const accentColor = '#edffea';
-  const accentColorDark = '#ff7543'; //#75daad';
-  const tooltipStyles = {
-    ...defaultStyles,
-    background,
-    border: '1px solid white',
-    color: 'white',
-};
-const formatDate = timeFormat("%b %d, %H:%MM");
-// accessors
-const getDate = (d) => {
-  return d.x;
-}
-const getCallActivity = (d) => {
-  return parseInt(d.y);
-}
-const {
-  tooltipData,
-  tooltipLeft,
-  tooltipTop,
-  tooltipOpen,
-  showTooltip,
-  hideTooltip,
-} = useTooltip();
-
-  const width = 500;
-  const height = 250;
-  const { containerRef, TooltipInPortal } = useTooltipInPortal({
-    // use TooltipWithBounds
-    detectBounds: true,
-    // when tooltip containers are scrolled, this will correctly update the Tooltip position
-    scroll: true,
-})
-  const bisectDate = bisector((d) => d.x).left;
-
-  const getMouseData = (event) => {
-    const coords = localPoint(event.target.ownerSVGElement, event);
-    const { x } = coords;
-
-    const x0 = dateScale.invert(x);
-    const index = bisectDate(calls, x0, 1);
-    const d0 = calls[index - 1];
-    const d1 = calls[index];
-    let d = d0;
-    if (d1 && getDate(d1)) {
-        d = x0.valueOf() - getDate(d0).valueOf() > getDate(d1).valueOf() - x0.valueOf() ? d1 : d0;
-    }
-
-    return { data: d, coords }
-}
-
-const handleMouseOver = (event, datum) => {
-    const { coords, data } = getMouseData(event);
-    showTooltip({
-        tooltipLeft: coords.x,
-        tooltipTop: callActivityScale(getCallActivity(data)),
-        tooltipData: data
-    });
-};
-  // bounds
-  const margin = { top: 10, right: 0, bottom: 0, left: 25 };
-  const innerWidth = width - margin.left - margin.right;
-  const innerHeight = height - margin.top - margin.bottom;
-
-  const calls = useMemo(
-      () => {
-              let callTotals = []; 
-              const now = new Date();
-              var MS_PER_MINUTE = 60000;
-          
-              for (let j = 0; j < siteStats.length; j++) {
-                  let spotsBack = siteStats.length - j;
-                  let time = new Date(now - spotsBack * 15 * MS_PER_MINUTE);
-                  callTotals.push({ y: siteStats[j], x: time });
-              }
-              callTotals.sort((a,b) => a.x-b.x);
-              return callTotals
-          
-          
-
-
-      }, [siteStats]
-  );
-  const dateScale = useMemo(
-      () =>
-          scaleTime({
-              range: [margin.left, innerWidth + margin.left],
-              domain: extent(calls, getDate),
-          }),
-      [innerWidth, margin.left, calls],
-  );
-
-  const callActivityScale = useMemo(
-      () => {
-          return scaleLinear({
-              range: [innerHeight + margin.top, margin.top],
-              domain: [0, (max(calls, getCallActivity) || 0)], // + innerHeight / 3],
-              nice: true,
-          })
-      },
-      [margin.top, innerHeight, calls],
-  );
-
-  return (
-      // Set `ref={containerRef}` on the element corresponding to the coordinate system that
-      // `left/top` (passed to `TooltipInPortal`) are relative to.
-
-           <div style={{position: 'relative'}}>
-          <svg ref={containerRef} width={width} height={height} >
-              
-              <rect
-                  x={margin.left}
-                  y={0}
-                  width={width-margin.left-margin.right}
-                  height={height}
-                  fill="url(#area-background-gradient)"
-                  rx={14}
-              />
-
-              <LinearGradient id="area-background-gradient" from={background} to={background2} />
-              <LinearGradient id="area-gradient" from={accentColor} to={accentColor} toOpacity={0.1} />
-              <GridRows
-                  left={margin.left}
-                  scale={callActivityScale}
-                  width={innerWidth}
-                  strokeDasharray="1,3"
-                  stroke={accentColor}
-                  strokeOpacity={0}
-                  pointerEvents="none"
-              />
-              <GridColumns
-                  top={margin.top}
-                  scale={dateScale}
-                  height={innerHeight}
-                  strokeDasharray="1,3"
-                  stroke={accentColor}
-                  strokeOpacity={0.2}
-                  pointerEvents="none"
-              />
-              <AreaClosed
-                  data={calls}
-                  x={(d) => dateScale(getDate(d)) ?? 0}
-                  y={(d) => callActivityScale(getCallActivity(d)) ?? 0}
-                  yScale={callActivityScale}
-                  strokeWidth={1}
-                  stroke="url(#area-gradient)"
-                  fill="url(#area-gradient)"
-                  curve={curveMonotoneX}
-
-              />
-              <Bar
-                  x={margin.left}
-                  y={margin.top}
-                  width={innerWidth}
-                  height={innerHeight}
-                  fill="transparent"
-                  rx={14}
-                  onMouseMove={handleMouseOver}
-                  onMouseOut={hideTooltip}
-              />
-              <AxisLeft scale={callActivityScale} left={margin.left}  numTicks={2} hideAxisLine={true} hideZero={true} />
-              {tooltipData && (
-                  <g>
-                      <Line
-                          from={{ x: tooltipLeft, y: margin.top }}
-                          to={{ x: tooltipLeft, y: innerHeight + margin.top }}
-                          stroke={accentColorDark}
-                          strokeWidth={2}
-                          pointerEvents="none"
-                          strokeDasharray="5,2"
-                      />
-                      <circle
-                          cx={tooltipLeft}
-                          cy={tooltipTop + 1}
-                          r={4}
-                          fill="black"
-                          fillOpacity={0.1}
-                          stroke="black"
-                          strokeOpacity={0.1}
-                          strokeWidth={2}
-                          pointerEvents="none"
-                      />
-                      <circle
-                          cx={tooltipLeft}
-                          cy={tooltipTop}
-                          r={4}
-                          fill={accentColorDark}
-                          stroke="white"
-                          strokeWidth={2}
-                          pointerEvents="none"
-                      />
-                  </g>
-              )}
-          </svg>
-          {tooltipOpen && (
-              <div>
-                  <TooltipWithBounds
-                      key={Math.random()}
-                      top={tooltipTop - 12}
-                      left={tooltipLeft}
-                      style={tooltipStyles}
-                  >
-                      {`${getCallActivity(tooltipData)}`}
-                  </TooltipWithBounds>
-                  <Tooltip
-                      top={-28}
-                      left={tooltipLeft}
-                      style={{
-                          ...defaultStyles,
-                          minWidth: 72,
-                          textAlign: 'center',
-                          transform: 'translateX(-50%)',
-                      }}
-                  >
-                      {formatDate(getDate(tooltipData))}
-                  </Tooltip>
-              </div>
-          )}
-          </div>
-
-  )
-};
-
-const SiteStatsContainer = () => {
-  const { data: siteStats, isSuccess: siteStatsSuccess } = useGetSiteStatsQuery();
-
-  if (!siteStatsSuccess) {
-    return <Loader size='large'>Loading Site Stats</Loader>;
-  }
-
-  return (
-    <div>
-      <h2>Site Activity</h2>
-      <BetterSiteStatsChart siteStats={siteStats.uploadsPerMin} />
-      Calls per Minute
-    </div>
-  );
-};
 
 
 // ----------------------------------------------------
@@ -506,6 +236,7 @@ const Main = (props) => {
   const [visible, setVisible] = useState(true);
   const [currentSystem, setCurrentSystem] = useState(0);
   const [signInOpen, setSignInOpen] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
@@ -567,8 +298,22 @@ const Main = (props) => {
   return (
     <>
       <style>{mediaStyles}</style>
-      <SignInModal open={signInOpen} onClose={() => setSignInOpen(false)} />
-      <ResponsiveContainer onSignIn={() => setSignInOpen(true)}>
+      {/* Each modal can hand off to the other, so a visitor who opened the
+          wrong one is not sent away to find the right one. */}
+      <SignInModal
+        open={signInOpen}
+        onClose={() => setSignInOpen(false)}
+        onRegister={() => setRegisterOpen(true)}
+      />
+      <RegisterModal
+        open={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        onSignIn={() => setSignInOpen(true)}
+      />
+      <ResponsiveContainer
+        onSignIn={() => setSignInOpen(true)}
+        onRegister={() => setRegisterOpen(true)}
+      >
         <div style={{ top: '-120px', position: 'relative' }}>
           <Segment style={{ padding: ' 0em', height: '350px', backgroudColor: '#FFF' }} vertical basic>
             <Grid columns='equal' stackable textAlign='center' style={{ height: '350px', marginRight: '0px' }}>
@@ -579,15 +324,6 @@ const Main = (props) => {
                     <SystemCard keepShort={true} system={system} key={system.shortName} onClick={(e) => navigate("/system/" + system.shortName)} />
 
                   </Transition>)}
-                </Grid.Column>
-                <Grid.Column style={{ paddingBottom: '0em', paddingTop: '6em', maxWidth: 450 }}>
-                  <Link to="/systems">
-                    <Button primary size='huge' id="listen" animated onClick={(e) => navigate("/system/" + system.shortName)}>
-                      <Button.Content visible><Icon name='headphones' />
-                        <Icon name='right arrow' /></Button.Content>
-                      <Button.Content hidden>Listen</Button.Content>
-                    </Button>
-                  </Link>
                 </Grid.Column>
               </Grid.Row>
             </Grid>
@@ -617,9 +353,6 @@ const Main = (props) => {
           <Segment style={{ padding: '0em' }} vertical>
             <Grid columns='equal' stackable>
               <Grid.Row textAlign='center'>
-                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
-                  <SiteStatsContainer />
-                </Grid.Column>
                 <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
                     <Statistic>

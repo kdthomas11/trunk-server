@@ -20,7 +20,7 @@ import { loginUser } from "../features/user/userSlice";
  * handled here and hand off to the account site instead: an unconfirmed email
  * address, which needs the resend flow, and terms that have not been accepted.
  */
-const SignInModal = ({ open, onClose }) => {
+const SignInModal = ({ open, onClose, onRegister }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const accountServer = process.env.REACT_APP_ACCOUNT_SERVER;
@@ -122,11 +122,15 @@ const SignInModal = ({ open, onClose }) => {
 
         <Divider horizontal>Or</Divider>
 
+        {/* Swaps to the register modal where one is available, rather than
+            sending a visitor off to the account site mid-flow. */}
         <Button
           fluid
           size="large"
-          href={`${accountServer}/register`}
           content="Create an account"
+          {...(onRegister
+            ? { onClick: () => { close(); onRegister(); } }
+            : { href: `${accountServer}/register` })}
         />
       </Modal.Content>
     </Modal>
