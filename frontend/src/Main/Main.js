@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from 'react-router-dom'
-import SystemCard from "../System/SystemCard";
+import React, { useState, useEffect } from "react";
+import { Link } from 'react-router-dom'
 import SupportModal from "../Common/SupportModal";
 import "./Main.css";
 import { createMedia } from "@artsy/fresnel";
@@ -13,9 +12,8 @@ import {
   Segment,
   Sidebar,
   Statistic,
-  Transition,
 } from 'semantic-ui-react'
-import { useGetSystemsQuery, useGetSiteStatsQuery } from "../features/api/apiSlice";
+import { useGetSiteStatsQuery } from "../features/api/apiSlice";
 import { useSelector, useDispatch } from 'react-redux'
 import { authenticateUser, selectUser } from "../features/user/userSlice";
 import AccountMenu from "../Common/AccountMenu";
@@ -231,68 +229,20 @@ const ResponsiveContainer = ({ children, onSignIn, onRegister }) => (
 // ----------------------------------------------------
 const Main = (props) => {
 
-  const [visible, setVisible] = useState(true);
-  const [currentSystem, setCurrentSystem] = useState(0);
   const [signInOpen, setSignInOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
-  const navigate = useNavigate();
   const dispatch = useDispatch();
   const user = useSelector(selectUser);
 
   // Both containers and the hero render at once (Fresnel hides one with CSS),
-  // so the modal is owned here and there is exactly one of it.
+  // so the modals are owned here and there is exactly one of each.
   useEffect(() => {
     if (!user.hasChecked) {
       dispatch(authenticateUser());
     }
   }, [dispatch, user.hasChecked]);
-  const { data: systems, isSuccess } = useGetSystemsQuery();   //= selectAllSystems();
-  const { data: siteStats, isSuccess: siteStatsSuccess } = useGetSiteStatsQuery();
-  
+  const { data: siteStats } = useGetSiteStatsQuery();
 
-  function useInterval(callback, delay) {
-    const savedCallback = useRef();
-
-    // Remember the latest callback.
-    useEffect(() => {
-      savedCallback.current = callback;
-    }, [callback]);
-
-    // Set up the interval.
-    useEffect(() => {
-      function tick() {
-        savedCallback.current();
-      }
-      if (delay !== null) {
-        let id = setInterval(tick, delay);
-        return () => clearInterval(id);
-      }
-    }, [delay]);
-  }
-
-  const advanceSystem = () => {
-    if (isSuccess) {
-      let nextSystem = currentSystem + 1;
-      if (nextSystem > systems.systems.length) {
-        nextSystem = 0;
-      }
-      setCurrentSystem(nextSystem);
-      setVisible(!visible);
-    }
-    //this.setState({ visible: !this.state.visible, currentSystem });
-  }
-
-  useInterval(() => { advanceSystem() }, 3000)
-
-  
-
-  //https://stackoverflow.com/questions/36559661/how-can-i-dispatch-from-child-components-in-react-redux
-  //https://stackoverflow.com/questions/42597602/react-onclick-pass-event-with-parameter
-
-  let system = false;
-  if (isSuccess) {
-    system = systems.systems[currentSystem];
-  }
   return (
     <>
       <style>{mediaStyles}</style>
@@ -312,27 +262,7 @@ const Main = (props) => {
         onSignIn={() => setSignInOpen(true)}
         onRegister={() => setRegisterOpen(true)}
       >
-        {/* The lift exists so the system card floats over the hero gradient.
-            With no card to lift, it dragged the counters up onto the blue
-            instead, so it only applies when there is one. */}
-        <div style={{ top: system ? '-120px' : '0px', position: 'relative' }}>
-          {/* Only when there is a card to show. The systems list needs a login,
-              so a signed-out visitor gets nothing back and this used to leave a
-              fixed 350px of empty space between the tagline and the counters. */}
-          {system && (
-            <Segment style={{ padding: '0em', backgroudColor: '#FFF' }} vertical basic>
-              <Grid columns='equal' stackable textAlign='center' style={{ marginRight: '0px' }}>
-                <Grid.Row textAlign='center'>
-                  <Grid.Column style={{ paddingBottom: '4em', paddingTop: '2em', maxWidth: 450 }}>
-                    <Transition visible={visible} animation='pulse' duration={500}>
-                      <SystemCard keepShort={true} system={system} key={system.shortName} onClick={(e) => navigate("/system/" + system.shortName)} />
-                    </Transition>
-                  </Grid.Column>
-                </Grid.Row>
-              </Grid>
-            </Segment>
-          )}
-
+        <div style={{ position: 'relative' }}>
           <Segment style={{ padding: '0em' }} vertical>
             <Grid columns='equal' stackable>
               <Grid.Row textAlign='center'>
