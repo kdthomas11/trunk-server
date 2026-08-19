@@ -5,8 +5,6 @@ import SupportModal from "../Common/SupportModal";
 import "./Main.css";
 import { createMedia } from "@artsy/fresnel";
 import {
-  Button,
-  ButtonContent,
   Container,
   Grid,
   Header,
@@ -50,7 +48,7 @@ const HomepageHeading = ({ mobile }) => {
   <Container text style={{ paddingBottom: '0px' }} >
     <Header
       as='h1'
-      content='Share the Air'
+      content='Your Repeaters, Recorded'
       style={{
         fontSize: mobile ? '2em' : '4em',
         color: "#FFF",
@@ -61,7 +59,7 @@ const HomepageHeading = ({ mobile }) => {
     />
     <Header
       as='h2'
-      content='Listen to Police and Fire radio from across the US'
+      content='Listen back to every transmission on your local ham radio repeater systems'
       style={{
         fontSize: mobile ? '1.5em' : '1.7em',
         color: "#FFF",
@@ -125,6 +123,9 @@ const DesktopContainer = (props) => {
             <Container>
               <Menu.Item ><Header as='h3' inverted>{process.env.REACT_APP_SITE_NAME}</Header></Menu.Item>
               <Menu.Menu position="right">
+                <SupportModal trigger={
+                  <Menu.Item link><Icon name='heart' /> Donate</Menu.Item>
+                } />
                 <AccountMenu onSignIn={onSignIn} onRegister={onRegister} />
               </Menu.Menu>
             </Container>
@@ -163,6 +164,9 @@ const MobileContainer = (props) => {
           <Menu.Item active>
             Home
           </Menu.Item>
+          <SupportModal trigger={
+            <Menu.Item link><Icon name='heart' /> Donate</Menu.Item>
+          } />
           <AccountMenu onSignIn={onSignIn} onRegister={onRegister} />
         </Sidebar>
 
@@ -308,36 +312,26 @@ const Main = (props) => {
         onSignIn={() => setSignInOpen(true)}
         onRegister={() => setRegisterOpen(true)}
       >
-        <div style={{ top: '-120px', position: 'relative' }}>
-          <Segment style={{ padding: ' 0em', height: '350px', backgroudColor: '#FFF' }} vertical basic>
-            <Grid columns='equal' stackable textAlign='center' style={{ height: '350px', marginRight: '0px' }}>
-              <Grid.Row textAlign='center'>
-                <Grid.Column style={{ paddingBottom: '4em', paddingTop: '2em', maxWidth: 450 }}>
-                  {system && (<Transition visible={visible} animation='pulse' duration={500}>
-
-                    <SystemCard keepShort={true} system={system} key={system.shortName} onClick={(e) => navigate("/system/" + system.shortName)} />
-
-                  </Transition>)}
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Segment>
-          <Segment style={{ padding: '0em' }} vertical>
-            <Grid columns='equal' stackable textAlign='center' style={{ height: '150px', marginRight: '0px' }}>
-              <Grid.Row textAlign='center'>
-                <Grid.Column style={{ paddingBottom: '4em', paddingTop: '2em', maxWidth: 450 }}>
-                  <SupportModal trigger={
-                    <Button color='red' size='large' animated='fade'>
-                      <ButtonContent visible>
-                        <Icon name='heart' /> Donate
-                      </ButtonContent>
-                      <ButtonContent hidden>Thank You</ButtonContent>
-                    </Button>
-                  } />
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Segment>
+        {/* The lift exists so the system card floats over the hero gradient.
+            With no card to lift, it dragged the counters up onto the blue
+            instead, so it only applies when there is one. */}
+        <div style={{ top: system ? '-120px' : '0px', position: 'relative' }}>
+          {/* Only when there is a card to show. The systems list needs a login,
+              so a signed-out visitor gets nothing back and this used to leave a
+              fixed 350px of empty space between the tagline and the counters. */}
+          {system && (
+            <Segment style={{ padding: '0em', backgroudColor: '#FFF' }} vertical basic>
+              <Grid columns='equal' stackable textAlign='center' style={{ marginRight: '0px' }}>
+                <Grid.Row textAlign='center'>
+                  <Grid.Column style={{ paddingBottom: '4em', paddingTop: '2em', maxWidth: 450 }}>
+                    <Transition visible={visible} animation='pulse' duration={500}>
+                      <SystemCard keepShort={true} system={system} key={system.shortName} onClick={(e) => navigate("/system/" + system.shortName)} />
+                    </Transition>
+                  </Grid.Column>
+                </Grid.Row>
+              </Grid>
+            </Segment>
+          )}
 
           <Segment style={{ padding: '0em' }} vertical>
             <Grid columns='equal' stackable>
