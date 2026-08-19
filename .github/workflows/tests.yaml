@@ -50,6 +50,24 @@ jobs:
         run: npm run test:server
         working-directory: account
 
+  admin:
+    name: Admin server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - run: npm ci --omit=dev
+        working-directory: admin
+
+      - name: Run the admin suite (fails if tests go missing)
+        run: npm run test:server
+        working-directory: admin
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
