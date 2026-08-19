@@ -313,6 +313,27 @@ describe("the shape of each payload", () => {
 
 // --- failure paths ----------------------------------------------------------
 
+describe("the builders keep to themselves", () => {
+
+	/**
+	 * Both builders assigned `call = {...}` with no declaration, and calls.js has
+	 * no "use strict", so each request wrote a module-level global. Harmless as
+	 * written - the value is consumed immediately with nothing awaited in between
+	 * - but it is one `await` away from two concurrent requests sharing a
+	 * variable, and that failure looks like intermittently wrong data rather than
+	 * an error.
+	 */
+	test("building a payload leaks nothing into global scope", async () => {
+		delete globalThis.call;
+		const call = store(makeCall());
+
+		await getList();
+		await getOne(call);
+
+		assert.equal(globalThis.call, undefined, "`call` escaped into global scope");
+	});
+});
+
 describe("asking for a call that is not there", () => {
 
 	test("an unknown id is a 404, not a crash", async () => {

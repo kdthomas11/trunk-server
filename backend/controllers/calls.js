@@ -65,7 +65,7 @@ const build_call_list = (items, starredIds, supporter) => {
     let calls = [];
     for (var i=0; i < items.length; i++) {
         const item = items[i];
-        call = {
+        const call = {
             _id: item._id.toHexString(),
             talkgroupNum: item.talkgroupNum,
             // Still the object store address, which means requireListener does
@@ -322,7 +322,7 @@ function package_call(item, starred, supporter) {
     var time = new Date(item.time);
     var timeString = time.toLocaleTimeString("en-US");
     var dateString = time.toDateString();
-    call = {
+    const call = {
         _id: item._id.toHexString(),
         shortName: item.shortName,
         talkgroupNum: item.talkgroupNum,
