@@ -50,7 +50,23 @@ jobs:
         run: npm run test:server
         working-directory: account
 
-# Not wired up yet: backend/test/spec.js. It declares "test": "mocha" but
-# neither mocha nor supertest is in backend/package.json, so it cannot run from
-# a clean install, and it boots the real server - it would need a mongo service
-# container as well. Fixing that is a separate piece of work.
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci --omit=dev
+        working-directory: backend
+
+      # No mongo service and no S3 credentials on purpose: the suite fakes both
+      # at the model boundary, so it runs anywhere node does. If that stops being
+      # true this job fails, which is the point.
+      - name: Run the backend suite (fails if tests go missing)
+        run: npm test
+        working-directory: backend

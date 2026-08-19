@@ -68,7 +68,12 @@ const build_call_list = (items, starredIds, supporter) => {
         call = {
             _id: item._id.toHexString(),
             talkgroupNum: item.talkgroupNum,
-            url: item.url,
+            // Not item.url. That is the object store address, and handing it to
+            // a client makes requireListener decorative: the keys are
+            // predictable, so anyone holding or guessing one listens without an
+            // account. This points at /:shortName/call/:id/media, which is
+            // gated and streams the bytes itself.
+            url: media.playbackUrl(item.shortName, item._id.toHexString()),
             filename: item.path + item.name,
             time: item.time,
             srcList: item.srcList,
@@ -316,7 +321,8 @@ function package_call(item, starred, supporter) {
         shortName: item.shortName,
         talkgroupNum: item.talkgroupNum,
         filename: item.path + item.name,
-        url: item.url,
+        // See build_call_list: the gated endpoint, never the bucket address.
+        url: media.playbackUrl(item.shortName, item._id.toHexString()),
         time: item.time,
         timeString: timeString,
         dateString: dateString,
