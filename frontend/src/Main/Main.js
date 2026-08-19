@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from 'react-router-dom'
 import SupportModal from "../Common/SupportModal";
+import logo from "../resources/hamrecorder-logo-nav.png";
 import "./Main.css";
 import { createMedia } from "@artsy/fresnel";
 import {
@@ -119,7 +120,11 @@ const DesktopContainer = (props) => {
             style={{ marginRight: '0px' }}
           >
             <Container>
-              <Menu.Item ><Header as='h3' inverted>{process.env.REACT_APP_SITE_NAME}</Header></Menu.Item>
+              {/* The wordmark is part of the image, so the alt text carries the
+                  site name for anyone not seeing it. */}
+              <Menu.Item>
+                <img src={logo} alt={process.env.REACT_APP_SITE_NAME} style={{ height: '32px', width: 'auto' }} />
+              </Menu.Item>
               <Menu.Menu position="right">
                 <SupportModal trigger={
                   <Menu.Item link><Icon name='heart' /> Donate</Menu.Item>
@@ -194,7 +199,9 @@ const MobileContainer = (props) => {
                   <Menu.Item onClick={handleToggle}>
                     <Icon name='sidebar' />
                   </Menu.Item>
-                  <Menu.Item header>{process.env.REACT_APP_SITE_NAME}</Menu.Item>
+                  <Menu.Item header>
+                    <img src={logo} alt={process.env.REACT_APP_SITE_NAME} style={{ height: '26px', width: 'auto' }} />
+                  </Menu.Item>
                 </Menu>
               </Container>
               <HomepageHeading mobile />
