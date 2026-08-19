@@ -61,50 +61,6 @@ mongoose.connection.on('disconnected', () => {
 });
 // -------------------------------------------
 
-function isOwner(req, res, next) {
-  if (req.params.shortName && req.user) {
-    var short_name = req.params.shortName.toLowerCase();
-    var userId = req.user._id;
-    Permission.findOne({ 'userId': userId, 'shortName': short_name }, function (err, permission) {
-      if (err) {
-        console.error('Error - getRole userId: ' + userId + ' shortName: ' + short_name + ' error: ' + err);
-      }
-      console.log('Found - getRole userId: ' + userId + ' shortName: ' + short_name + ' role: ' + permission.role);
-      if (permission.role >= 15) {
-        return next();
-      } else {
-        res.status(401).send({
-          success: false,
-          message: "Insufficent Permission, role: " + permission.role
-        });
-      }
-
-    });
-  }
-}
-
-/*
-function isAdmin(req, res, next) {
-  if (req.params.shortName && req.user) {
-    var short_name = req.params.shortName.toLowerCase();
-    var userId = req.user._id;
-    Permission.findOne({ 'userId': userId, 'shortName': short_name }, function (err, permission) {
-      if (err) {
-        console.error('Error - getRole userId: ' + userId + ' shortName: ' + short_name + ' error: ' + err);
-      }
-      console.log('Found - getRole userId: ' + userId + ' shortName: ' + short_name + ' role: ' + permission.role);
-      if (permission.role >= 10) {
-        return next();
-      } else {
-        res.status(401).send({
-          success: false,
-          message: "Insufficent Permission, role: " + permission.role
-        });
-      }
-    });
-  }
-}*/
-
 function isLoggedIn(req, res, next) {
   if (req.isAuthenticated()) return next();
   res.status(401).send({
