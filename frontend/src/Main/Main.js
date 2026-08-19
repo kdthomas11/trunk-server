@@ -6,20 +6,16 @@ import "./Main.css";
 import { createMedia } from "@artsy/fresnel";
 import {
   Button,
-  ButtonGroup,
   ButtonContent,
   Container,
-  Divider,
   Grid,
   Header,
   Icon,
   Menu,
   Segment,
   Sidebar,
-
   Statistic,
   Transition,
-
 } from 'semantic-ui-react'
 import { useGetSystemsQuery, useGetSiteStatsQuery } from "../features/api/apiSlice";
 import { useSelector, useDispatch } from 'react-redux'
@@ -332,19 +328,14 @@ const Main = (props) => {
             <Grid columns='equal' stackable textAlign='center' style={{ height: '150px', marginRight: '0px' }}>
               <Grid.Row textAlign='center'>
                 <Grid.Column style={{ paddingBottom: '4em', paddingTop: '2em', maxWidth: 450 }}>
-                  <ButtonGroup size='large'>
-                    <SupportModal trigger={
-                    <Button color='red' animated='fade'>
+                  <SupportModal trigger={
+                    <Button color='red' size='large' animated='fade'>
                       <ButtonContent visible>
                         <Icon name='heart' /> Donate
                       </ButtonContent>
                       <ButtonContent hidden>Thank You</ButtonContent>
                     </Button>
-                    } />
-                    <Button href="https://apps.apple.com/us/app/openmhz/id6466666994">
-                    <Icon name='app store ios' /> iOS App
-                    </Button>
-                  </ButtonGroup>
+                  } />
                 </Grid.Column>
               </Grid.Row>
             </Grid>
@@ -404,26 +395,6 @@ const Main = (props) => {
                 Most large cities use trunked radio systems to get the most use out of their assigned radio spectrum. With trunked systems, the transmission are constantly hopping to different frequencies. Using a cheap Software Defined Radio (SDR), it is possible capture all of the transmission on a system.
                 Instead of scanning to a single frequency, SDR capturea wide swathes of spectrum, covering all of the frequencies a system could use.
               </p>
-              <Divider
-                as='h4'
-                className='header'
-                horizontal
-                style={{ margin: '3em 0em', textTransform: 'uppercase' }}
-              >
-                Get Involved
-              </Divider>
-              <Header as='h3' style={{ fontSize: '2em' }}>
-                Want to record your local radio system?
-              </Header>
-              <p style={{ fontSize: '1.33em' }}>
-                Join us! Record a local radio system and share it with the world. If you have a spare computer, it is easy to get started. With a $25 SDR or two, you can capture an entire system.
-                It does take a little bit of work to get things setup, but we are here to help and answer questions.
-              </p>
-              <a href="https://github.com/robotastic/trunk-recorder/blob/master/README.md">
-                <Button size='large'>
-                  Learn More
-                </Button>
-              </a>
             </Container>
           </Segment>
         </div>
@@ -437,9 +408,6 @@ const Main = (props) => {
                 
                 <Grid.Column width={4} textAlign='center' >
                 <Link to="/terms" ><Header as='h3' inverted>Terms of Service</Header></Link>
-                  <Header as='h4' inverted>
-                    The End <Icon name='rocket' />
-                  </Header>
                 </Grid.Column>
                 <Grid.Column width={6}>
 
