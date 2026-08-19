@@ -31,17 +31,9 @@ if (!sessionSecret) {
   console.warn("WARNING: SESSION_SECRET is not set. Using a throwaway value for this process - the backend will not recognise sessions issued by the account service.");
 }
 
-const mongo_host = typeof process.env['MONGO_HOST'] !== 'undefined' ? process.env['MONGO_HOST'] : 'mongo';
-const mongo_port = typeof process.env['MONGO_PORT'] !== 'undefined' ? process.env['MONGO_PORT'] : 27017;
-const mongo_user = process.env['MONGO_USER'];
-const mongo_password = process.env['MONGO_PASSWORD'];
-
-let mongoUrl;
-if ((typeof mongo_user !== 'undefined') && (typeof mongo_password !== 'undefined')) {
-  mongoUrl = 'mongodb://' + mongo_user + ':' + mongo_password + '@' + mongo_host + ':' + mongo_port + '/scanner';
-} else {
-  mongoUrl = 'mongodb://' + mongo_host + ':' + mongo_port + '/scanner';
-}
+// The session store and the app connect to the same database; the string is
+// built in one place so they cannot drift apart.
+const mongoUrl = require("./mongo-url");
 
 const sessionMiddleware = session({
   secret: sessionSecret || require("crypto").randomBytes(48).toString("base64"),
