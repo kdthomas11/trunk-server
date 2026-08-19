@@ -73,57 +73,139 @@ exports.authenticated = function (req, res, next) {
   }
 }
 
-exports.login = function (req, res, next) {
-  // Do email and password validation for the server
+/**
+ * The fields of a user the client is allowed to see.
+ *
+ * An allow-list, not a subtraction: everything not named here stays on the
+ * server. That is what keeps the password hash, the reset token and the confirm
+ * token out of a login response without anyone having to remember to remove
+ * them when a field is added to the schema.
+ */
+function clientProfile(user) {
+  return {
+    firstName: user.firstName,
+    lastName: user.lastName,
+    screenName: user.screenName,
+    callsign: user.callsign,
+    city: user.city,
+    state: user.state,
+    country: user.country,
+    email: user.email,
+    admin: user.admin,
+    plan: user.plan,
+    terms: user.terms,
+    userId: user.id
+  };
+}
 
+/**
+ * What the visitor is told when sign-in fails.
+ *
+ * The audit trail gets the precise reason; the visitor does not. "bad password"
+ * and "no such account" are deliberately collapsed back to one answer, because
+ * telling them apart is exactly how an attacker works out which addresses have
+ * accounts. They were both "invalid" before the audit trail split them, and to
+ * the client they still are.
+ */
+function rejectionResponse(info) {
+  const publicReason = (info.reason === "bad password" || info.reason === "no such account")
+    ? "invalid"
+    : info.reason;
+
+  const failure = {
+    success: false,
+    message: info.message,
+    reason: publicReason
+  };
+  // userId only for an unconfirmed address, so the resend flow has something to
+  // act on. Deliberately not for a wrong password: that answer is worded
+  // identically to "no such account" so it cannot be used to discover which
+  // addresses have accounts, and returning an id here would give that away.
+  if (info && info.reason === "unconfirmed email" && info.userId) {
+    failure.userId = info.userId;
+  }
+  return failure;
+}
+
+/** The strategy rejected the credentials. Record it, then answer. */
+function refuseSignIn(req, res, info) {
+  console.log("No user");
+  // Every rejection is recorded, with the reason the strategy gave. The
+  // strategy passes userId along when the account exists, so the trail can tell
+  // a wrong password on a real account apart from a guessed address.
+  loginEvents.record(req, {
+    success: false,
+    reason: info && info.reason ? info.reason : "no such account",
+    email: req.body.email,
+    userId: info && info.userId,
+    callsign: info && info.callsign
+  });
+  return res.json(rejectionResponse(info));
+}
+
+/**
+ * Defence in depth: the strategy already rejects an unconfirmed address before
+ * it checks the password, so nothing reaches this today. It exists so that
+ * moving or removing that check cannot quietly let an unconfirmed account in.
+ */
+function refuseUnconfirmed(req, res, next, user) {
+  // Only the callback form. Since passport 0.6 a bare req.logout() throws
+  // "req#logout requires a callback function" whenever a session manager is
+  // attached, which it always is here - and this sits inside a req.login
+  // callback, so the throw escapes as an uncaught exception rather than
+  // reaching the error handler. Signing in with an unconfirmed address took
+  // down the account process.
+  return req.logout(function (err) {
+    if (err) { return next(err); }
+    res.clearCookie('sessionId', { domain: cookie_domain, path: '/' });
+    return res.json({
+      success: false,
+      message: "unconfirmed email",
+      reason: "unconfirmed email",
+      userId: user.id
+    });
+  });
+}
+
+/** The session is established. Record it, stamp it, and answer. */
+function completeSignIn(req, res, user) {
+  // When this session was actually authenticated. Listener sessions roll for
+  // 30 days, but admin routes require a login within the last 12 hours, so the
+  // age of the login has to be recorded separately from the session.
+  req.session.loginAt = Date.now();
+
+  loginEvents.record(req, {
+    success: true,
+    reason: "ok",
+    email: user.email,
+    callsign: user.callsign,
+    userId: user.id
+  });
+
+  // lastLogin had a default of Date.now and was then never written again, so it
+  // recorded when the account was created. The admin portal shows it as "last
+  // login", so it needs to actually mean that. Fire and forget - a failure here
+  // should not fail the login.
+  User.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } })
+    .catch(err => console.error("Error - could not stamp lastLogin: " + err));
+
+  return res.json({
+    success: true,
+    message: "authentication succeeded",
+    user: clientProfile(user),
+    userId: user.id
+  });
+}
+
+exports.login = function (req, res, next) {
+  // A custom callback, so establishing the session and sending the response are
+  // this function's job rather than passport's:
+  // http://passportjs.org/docs
   passport.authenticate("local", function (err, user, info) {
     if (err) return next(err);
-    if (!user) {
-      console.log("No user");
-      // Every rejection is recorded, with the reason the strategy gave. The
-      // strategy passes userId along when the account exists, so the trail can
-      // tell a wrong password on a real account apart from a guessed address.
-      loginEvents.record(req, {
-        success: false,
-        reason: info && info.reason ? info.reason : "no such account",
-        email: req.body.email,
-        userId: info && info.userId,
-        callsign: info && info.callsign
-      });
-      // The audit trail gets the precise reason; the visitor does not. "bad
-      // password" and "no such account" are deliberately collapsed back to one
-      // answer, because telling them apart is exactly how an attacker works out
-      // which addresses have accounts. They were both "invalid" before the
-      // audit trail split them, and to the client they still are.
-      const publicReason = (info.reason === "bad password" || info.reason === "no such account")
-        ? "invalid"
-        : info.reason;
+    if (!user) return refuseSignIn(req, res, info);
 
-      const failure = {
-        success: false,
-        message: info.message,
-        reason: publicReason
-      };
-      // userId only for an unconfirmed address, so the resend flow has
-      // something to act on. Deliberately not for a wrong password: that
-      // answer is worded identically to "no such account" so it cannot be used
-      // to discover which addresses have accounts, and returning an id here
-      // would give that away.
-      if (info && info.reason === "unconfirmed email" && info.userId) {
-        failure.userId = info.userId;
-      }
-      return res.json(failure);
-    }
-    // ***********************************************************************
-    // "Note that when using a custom callback, it becomes the application's
-    // responsibility to establish a session (by calling req.login()) and send
-    // a response."
-    // Source: http://passportjs.org/docs
-    // ***********************************************************************
-    // Passport exposes a login() function on req (also aliased as logIn())
-    // that can be used to establish a login session
     req.login(user, loginErr => {
-
       if (loginErr) {
         console.log("error")
         return res.json({
@@ -131,80 +213,8 @@ exports.login = function (req, res, next) {
           message: loginErr
         });
       }
-      if (!user.confirmEmail) {
-        // Only the callback form. Since passport 0.6 a bare req.logout() throws
-        // "req#logout requires a callback function" whenever a session manager
-        // is attached, which it always is here - and this sits inside a
-        // req.login callback, so the throw escapes as an uncaught exception
-        // rather than reaching the error handler. Signing in with an
-        // unconfirmed address took down the account process.
-        return req.logout(function (err) {
-          if (err) { return next(err); }
-          res.clearCookie('sessionId', { domain: cookie_domain, path: '/' });
-          return res.json({
-            success: false,
-            message: "unconfirmed email",
-            reason: "unconfirmed email",
-            userId: user.id
-          });
-        });
-      }
-      // When this session was actually authenticated. Listener sessions roll for
-      // 30 days, but admin routes require a login within the last 12 hours, so
-      // the age of the login has to be recorded separately from the session.
-      req.session.loginAt = Date.now();
-
-      loginEvents.record(req, {
-        success: true,
-        reason: "ok",
-        email: user.email,
-        callsign: user.callsign,
-        userId: user.id
-      });
-
-      // lastLogin had a default of Date.now and was then never written again,
-      // so it recorded when the account was created. The admin portal shows it
-      // as "last login", so it needs to actually mean that. Fire and forget -
-      // a failure here should not fail the login.
-      User.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } })
-        .catch(err => console.error("Error - could not stamp lastLogin: " + err));
-
-      //console.log("account/server/controllers/users.js - req.login() Authenicated: " + user.email);
-      // go ahead and create the new user
-      var clientUser = (({
-        firstName,
-        lastName,
-        screenName,
-        callsign,
-        city,
-        state,
-        country,
-        email,
-        admin,
-        plan,
-        terms
-      }) => ({
-        firstName,
-        lastName,
-        screenName,
-        callsign,
-        city,
-        state,
-        country,
-        email,
-        admin,
-        plan,
-        terms
-      }))(
-        user
-      );
-      clientUser.userId = user.id
-      return res.json({
-        success: true,
-        message: "authentication succeeded",
-        user: clientUser,
-        userId: user.id
-      });
+      if (!user.confirmEmail) return refuseUnconfirmed(req, res, next, user);
+      return completeSignIn(req, res, user);
     });
   })(req, res, next);
 };
