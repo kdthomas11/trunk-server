@@ -89,5 +89,50 @@
       "test": 0.2
     },
     "note": "PR dimension included this run via the git diff main...HEAD fallback, which the first run did not apply. Composite is 89 either way - recomputed with PR excluded and the first run's redistributed weights it is also 89 - so the 72 to 89 trend is not an artefact of the scope change."
+  },
+  {
+    "date": "2026-08-19",
+    "mode": "Health Dashboard",
+    "score": 86,
+    "scope": "whole project (branch local-dev @ f85a766, 19958 lines app code, 5 services)",
+    "findings": {
+      "critical": 2,
+      "warning": 5,
+      "suggestion": 1
+    },
+    "dimensions": {
+      "codeQuality": {
+        "score": 75,
+        "critical": 1,
+        "warning": 2,
+        "suggestion": 0,
+        "scope": "git diff master...local-dev, 135 source files"
+      },
+      "architecture": {
+        "score": 95,
+        "critical": 0,
+        "warning": 1,
+        "suggestion": 0
+      },
+      "debt": {
+        "score": 89,
+        "critical": 0,
+        "warning": 2,
+        "suggestion": 1
+      },
+      "test": {
+        "score": 80,
+        "critical": 1,
+        "warning": 1,
+        "suggestion": 0
+      }
+    },
+    "weights": {
+      "codeQuality": 0.25,
+      "architecture": 0.3,
+      "debt": 0.25,
+      "test": 0.2
+    },
+    "note": "Down from 89, and NOT because the code got worse. The drop is one Critical in the code-quality dimension - audio bypasses the listener gate - which was equally true at the 89 and at the 72; it was found while tracing the payload builders, not introduced. Scoring six decay risks does not surface 'a security control exists but is never invoked', so two prior dashboards missed it. Test held at 80 despite backend going from zero runnable tests to 16 in CI: the Critical there is unchanged in kind (admin, frontend and whisper still have none), and the warning slot moved from an un-runnable suite to untested password-reset and email-confirmation flows, which were equally untested before."
   }
 ]
