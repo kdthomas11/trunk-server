@@ -50,7 +50,7 @@ const HomepageHeading = ({ mobile }) => {
       as='h1'
       content='Your Repeaters, Recorded'
       style={{
-        fontSize: mobile ? '2em' : '4em',
+        fontSize: mobile ? '2em' : '3.5em',
         color: "#FFF",
         fontWeight: 'normal',
         marginBottom: 0,
@@ -59,7 +59,7 @@ const HomepageHeading = ({ mobile }) => {
     />
     <Header
       as='h2'
-      content='Listen back to every transmission on your local ham radio repeater systems'
+      content='Listen back to every transmission on your local Ham Radio repeater systems'
       style={{
         fontSize: mobile ? '1.5em' : '1.7em',
         color: "#FFF",
@@ -358,13 +358,13 @@ const Main = (props) => {
 
 
           <Segment style={{ padding: '0em' }} vertical>
-            <Grid celled='internally' columns='equal' stackable>
+            <Grid columns='equal' stackable>
               <Grid.Row textAlign='center'>
                 <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
                   <Header as='h3' style={{ fontSize: '2em' }}>
-                    <Icon color='orange' name='list' />All The Calls
+                    <Icon color='orange' name='list' />All The Transmissions
                   </Header>
-                  <p style={{ fontSize: '1.33em' }}>Every call, on every repeater is recorded</p>
+                  <p style={{ fontSize: '1.33em' }}>Every transmission, on every repeater is recorded</p>
                 </Grid.Column>
                 <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
                   <Header as='h3' style={{ fontSize: '2em' }}>
@@ -372,7 +372,7 @@ const Main = (props) => {
                     Go back in time
                   </Header>
                   <p style={{ fontSize: '1.33em' }}>
-                    Missed a call? Not a problem, everything is archived!
+                    Missed a transmission? Not a problem, everything is archived!
                   </p>
                 </Grid.Column>
               </Grid.Row>

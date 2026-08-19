@@ -1,32 +1,58 @@
-import {useState} from 'react';
+import { useState } from 'react';
 import {
   Modal,
   Button,
-  ButtonContent,
-  ButtonGroup,
   Divider,
-  Icon
+  Icon,
+  Message
 } from "semantic-ui-react";
 
+/**
+ * Where the Donate button leads.
+ *
+ * Both destinations are placeholders until the accounts exist. An empty string
+ * renders the button disabled rather than linking somewhere wrong - this modal
+ * used to point at the upstream OpenMHz project's GitHub Sponsors and Patreon,
+ * which would now be sending this site's supporters to somebody else.
+ *
+ * Fill these in and the buttons light up; nothing else needs changing.
+ */
+const BUY_ME_A_COFFEE_URL = "";
+const PATREON_URL = "";
 
 function SupportModal(props) {
 
   const [open, setOpen] = useState(false);
+  const siteName = process.env.REACT_APP_SITE_NAME;
 
-  const handleClose = () => props.onClose();
+  /** A donation link, or a disabled button while the account is being set up. */
+  const DonateButton = ({ url, icon, label }) => (
+    url
+      ? <a href={url}><Button><Icon name={icon} />{label}</Button></a>
+      : <Button disabled title="Coming soon"><Icon name={icon} />{label}</Button>
+  );
 
   return (
     <Modal open={open} onClose={() => setOpen(false)} onOpen={() => setOpen(true)} trigger={props.trigger} size='tiny' >
-      <Modal.Header>Support OpenMHz</Modal.Header>
+      <Modal.Header>Support {siteName}</Modal.Header>
       <Modal.Content image>
         <Icon size='massive' name="coffee" />
         <Modal.Description>
-          <p>If OpenMHz brings you joy, think about becoming a supporter! It will cover hosting costs and help keep me focused on development.</p>
+          <p>If {siteName} brings you joy, think about becoming a supporter! It will cover hosting costs.</p>
+
+          <Message info>
+            <Message.Header>Supporters get transcription and search</Message.Header>
+            <p>
+              Every transmission is transcribed, and the archive becomes
+              searchable by what was actually said - so you can find the
+              transmission you are after without listening through the whole day.
+            </p>
+          </Message>
 
           <Divider horizontal>Donate</Divider>
-          <a href="https://github.com/sponsors/robotastic"><Button ><Icon name="github"/>GitHub Sponsors</Button></a>
-          
-          <a href="https://patreon.com/OpenMHz"><Button ><Icon name="patreon"/>Patreon </Button></a>
+          <DonateButton url={BUY_ME_A_COFFEE_URL} icon="coffee" label="Buy Me A Coffee" />
+          {' '}
+          <DonateButton url={PATREON_URL} icon="patreon" label="Patreon" />
 
         </Modal.Description>
 
