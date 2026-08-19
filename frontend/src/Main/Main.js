@@ -267,6 +267,10 @@ const Main = (props) => {
               on the right. borderBottom none because a Semantic vertical
               segment otherwise draws a 1px rule beneath itself. */}
           <Segment style={{ padding: '0em', borderBottom: 'none' }} vertical>
+            {/* Container, not a bare grid: full width put each column in the
+                middle of its own half of the screen, leaving ~740px of nothing
+                between the counters and the blurbs on a wide display. */}
+            <Container>
             <Grid columns={2} stackable>
               <Grid.Row textAlign='center'>
                 <Grid.Column style={{ paddingBottom: '5em', paddingTop: '2em' }}>
@@ -301,6 +305,7 @@ const Main = (props) => {
                 </Grid.Column>
               </Grid.Row>
             </Grid>
+            </Container>
           </Segment>
           <Segment style={{ padding: '8em 0em' }} vertical>
             <Container text>
