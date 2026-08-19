@@ -124,7 +124,6 @@ const DesktopContainer = (props) => {
           >
             <Container>
               <Menu.Item ><Header as='h3' inverted>{process.env.REACT_APP_SITE_NAME}</Header></Menu.Item>
-              <Link to="/about"><Menu.Item link >About</Menu.Item></Link>
               <Menu.Menu position="right">
                 <AccountMenu onSignIn={onSignIn} onRegister={onRegister} />
               </Menu.Menu>
@@ -164,7 +163,6 @@ const MobileContainer = (props) => {
           <Menu.Item active>
             Home
           </Menu.Item>
-          <Menu.Item ><Link to="/about">About</Link></Menu.Item>
           <AccountMenu onSignIn={onSignIn} onRegister={onRegister} />
         </Sidebar>
 
