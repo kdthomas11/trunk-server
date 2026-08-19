@@ -68,6 +68,32 @@ jobs:
         run: npm run test:server
         working-directory: admin
 
+  frontend:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # A full install, not --omit=dev: these run under jest, which is part of
+      # react-scripts and therefore a devDependency. Nothing here runs in the
+      # runtime image, so that is fine.
+      - run: npm ci
+        working-directory: frontend
+
+      # No floor check needed here. react-scripts exits 1 when its pattern
+      # matches no files - verified - so a suite that quietly disappears fails
+      # this job on its own, which is not true of `node --test`.
+      - name: Run the frontend suite
+        run: npm test -- --watchAll=false
+        working-directory: frontend
+        env:
+          CI: true
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
