@@ -263,10 +263,13 @@ const Main = (props) => {
         onRegister={() => setRegisterOpen(true)}
       >
         <div style={{ position: 'relative' }}>
-          <Segment style={{ padding: '0em' }} vertical>
+          {/* borderBottom none on this and the next: a Semantic vertical
+              segment draws a 1px rule beneath itself, and the two of them put
+              a line above and below the feature blurbs. */}
+          <Segment style={{ padding: '0em', borderBottom: 'none' }} vertical>
             <Grid columns='equal' stackable>
               <Grid.Row textAlign='center'>
-                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
+                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '2em' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
                     <Statistic>
                       <Statistic.Value>
@@ -287,7 +290,7 @@ const Main = (props) => {
           </Segment>
 
 
-          <Segment style={{ padding: '0em' }} vertical>
+          <Segment style={{ padding: '0em', borderBottom: 'none' }} vertical>
             <Grid columns='equal' stackable>
               <Grid.Row textAlign='center'>
                 <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
