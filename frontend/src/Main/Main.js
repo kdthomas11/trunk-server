@@ -273,7 +273,7 @@ const Main = (props) => {
             <Container>
             <Grid columns={2} stackable>
               <Grid.Row textAlign='center'>
-                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '2em' }}>
+                <Grid.Column style={{ paddingBottom: '2em', paddingTop: '2em' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
                     <Statistic>
                       <Statistic.Value>
@@ -289,7 +289,7 @@ const Main = (props) => {
                     </Statistic>
                   </div>
                 </Grid.Column>
-                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '2em' }}>
+                <Grid.Column style={{ paddingBottom: '2em', paddingTop: '2em' }}>
                   <Header as='h3' style={{ fontSize: '2em' }}>
                     <Icon color='orange' name='list' />All The Transmissions
                   </Header>
@@ -307,7 +307,7 @@ const Main = (props) => {
             </Grid>
             </Container>
           </Segment>
-          <Segment style={{ padding: '8em 0em' }} vertical>
+          <Segment style={{ paddingTop: '3.5em', paddingBottom: '8em' }} vertical>
             <Container text>
               <Header as='h3' style={{ fontSize: '2em' }}>
                 Don't just scan, hear it all!
