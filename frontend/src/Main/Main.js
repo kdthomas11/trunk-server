@@ -263,11 +263,11 @@ const Main = (props) => {
         onRegister={() => setRegisterOpen(true)}
       >
         <div style={{ position: 'relative' }}>
-          {/* borderBottom none on this and the next: a Semantic vertical
-              segment draws a 1px rule beneath itself, and the two of them put
-              a line above and below the feature blurbs. */}
+          {/* One row: the counters stacked on the left, the two blurbs stacked
+              on the right. borderBottom none because a Semantic vertical
+              segment otherwise draws a 1px rule beneath itself. */}
           <Segment style={{ padding: '0em', borderBottom: 'none' }} vertical>
-            <Grid columns='equal' stackable>
+            <Grid columns={2} stackable>
               <Grid.Row textAlign='center'>
                 <Grid.Column style={{ paddingBottom: '5em', paddingTop: '2em' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: '100%' }}>
@@ -277,7 +277,7 @@ const Main = (props) => {
                       </Statistic.Value>
                       <Statistic.Label>Active Systems</Statistic.Label>
                     </Statistic>
-                    <Statistic>
+                    <Statistic style={{ marginTop: '1.5em' }}>
                       <Statistic.Value>
                         {siteStats?.totalClients || 0} <Icon name='headphones' size='small' />
                       </Statistic.Value>
@@ -285,22 +285,13 @@ const Main = (props) => {
                     </Statistic>
                   </div>
                 </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Segment>
-
-
-          <Segment style={{ padding: '0em', borderBottom: 'none' }} vertical>
-            <Grid columns='equal' stackable>
-              <Grid.Row textAlign='center'>
-                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
+                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '2em' }}>
                   <Header as='h3' style={{ fontSize: '2em' }}>
                     <Icon color='orange' name='list' />All The Transmissions
                   </Header>
                   <p style={{ fontSize: '1.33em' }}>Every transmission, on every repeater is recorded</p>
-                </Grid.Column>
-                <Grid.Column style={{ paddingBottom: '5em', paddingTop: '5em' }}>
-                  <Header as='h3' style={{ fontSize: '2em' }}>
+
+                  <Header as='h3' style={{ fontSize: '2em', marginTop: '1.5em' }}>
                     <Icon color='orange' name='checked calendar' />
                     Go back in time
                   </Header>
