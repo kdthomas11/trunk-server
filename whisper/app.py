@@ -145,7 +145,60 @@ def _stem(word: str) -> str:
 
 
 def _content_words(text: str) -> list[str]:
-    return [_stem(w) for w in re.findall(r"[a-z0-9]+", text.lower())]
+    # Single characters are fragments, not content. Whisper splits "simplex"
+    # into "simple x" often enough that the stray "x" was enough to convince
+    # the echo test below that it was looking at real speech.
+    return [_stem(w) for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1]
+
+
+def _near(word: str, prompt_words: set[str]) -> bool:
+    """Is this word a prompt word, or a mangled attempt at one?
+
+    Whisper does not echo the prompt back cleanly. It drops a letter, splits a
+    word, or runs two together, and the result is not in the prompt vocabulary
+    even though it plainly came from it: "simplex" comes back as "simple x",
+    "simpley" or "simplexx". Exact matching alone leaves those looking like real
+    speech, which is how a whole echo used to reach the transcript.
+
+    Fuzzy matching is deliberately only against the prompt, never against
+    STOPWORDS. Allowing it there matches on the first letter or two of anything
+    - "ai6tc" starts with "a", "welcome" starts with "we" - and callsigns are
+    exactly what must never be mistaken for prompt vocabulary.
+    """
+    if word in prompt_words:
+        return True
+    for k in prompt_words:
+        # "simple" out of "simplex"; both sides long enough that short prompt
+        # words like "net" and "qsl" cannot swallow a real word.
+        if len(word) >= 4 and len(k) >= 4 and (k.startswith(word) or word.startswith(k)):
+            return True
+        # "simpley" for "simplex" - one substitution, insertion or deletion.
+        if len(word) >= 5 and abs(len(word) - len(k)) <= 1 and _edit_distance_1(word, k):
+            return True
+    return False
+
+
+def _edit_distance_1(a: str, b: str) -> bool:
+    """True when a and b differ by at most one edit. Cheaper than a full matrix."""
+    if a == b:
+        return True
+    if abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(1 for x, y in zip(a, b) if x != y) == 1
+    shorter, longer = (a, b) if len(a) < len(b) else (b, a)
+    i = j = 0
+    skipped = False
+    while i < len(shorter) and j < len(longer):
+        if shorter[i] != longer[j]:
+            if skipped:
+                return False
+            skipped = True
+            j += 1
+            continue
+        i += 1
+        j += 1
+    return True
 
 
 def is_prompt_echo(text: str, prompt: str) -> bool:
@@ -167,8 +220,16 @@ def is_prompt_echo(text: str, prompt: str) -> bool:
     words = _content_words(text)
     if not words:
         return False
-    known = set(_content_words(prompt)) | STOPWORDS
-    return not any(word not in known for word in words)
+    prompt_words = set(_content_words(prompt))
+
+    # An echo has to actually contain the prompt. Without this, an over that
+    # reduces to nothing but stopwords - "at 8 p.m.", "6-L-O-P, 6 to 4", which
+    # is a callsign being spelled out - satisfies "every word is known" purely
+    # by having no content words left, and gets thrown away.
+    if not any(_near(word, prompt_words) for word in words):
+        return False
+
+    return all(word in STOPWORDS or _near(word, prompt_words) for word in words)
 
 
 @app.get("/healthz")
