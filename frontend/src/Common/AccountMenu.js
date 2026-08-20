@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { Link } from "react-router-dom";
 import { Menu, Dropdown, Modal, Button, Icon } from "semantic-ui-react";
 
 import { authenticateUser, logoutUser, selectUser } from "../features/user/userSlice";
@@ -72,6 +73,12 @@ const AccountMenu = ({ onSignIn, onRegister }) => {
         <span><Icon name="user circle" />{user.callsign || "Account"}</span>
       }>
         <Dropdown.Menu>
+          {/* The front page carries no Systems link - it is a page a signed-out
+              visitor cannot use - so once someone is signed in this menu is the
+              only way from there to the systems list. A Link rather than an
+              href: it is a route in this app, and a full page load would throw
+              away the loaded call list. */}
+          <Dropdown.Item as={Link} to="/systems" icon="list" text="Systems" />
           <Dropdown.Item icon="id card" text="Profile" href={`${accountServer}/profile`} />
           <Dropdown.Item icon="sign out" text="Log out" onClick={() => setConfirming(true)} />
         </Dropdown.Menu>
