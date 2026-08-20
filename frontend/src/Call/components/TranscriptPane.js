@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { Header, Icon, Segment, Loader } from "semantic-ui-react";
@@ -36,23 +36,29 @@ const TranscriptPane = ({ call }) => {
   // three seconds. Transcription takes five or six seconds in practice, and a
   // call that has not produced one by twenty never will - noise, or a failure -
   // so there is nothing left to wait for.
-  const pollsRef = useRef(0);
+  // `polls` is state, not a ref, and that is the whole point. A ref does not
+  // re-render, so incrementing one left this effect's dependencies untouched
+  // and no second timer was ever scheduled: the pane polled exactly once, three
+  // seconds in, and stopped. Transcription usually takes longer than that, so
+  // the single answer was almost always still "pending" and the pane sat on
+  // "Transcribing…" until the page was reloaded by hand.
+  const [polls, setPolls] = useState(0);
 
   useEffect(() => {
-    pollsRef.current = 0;
+    setPolls(0);
   }, [callId]);
 
   useEffect(() => {
     if (!callId || !isSupporter || state !== "pending") return;
-    if (pollsRef.current >= 6) return;
+    if (polls >= 6) return;
 
     const timer = setTimeout(() => {
-      pollsRef.current += 1;
+      setPolls((n) => n + 1);
       dispatch(fetchCall({ shortName: (call && call.shortName) || shortName, callId }));
     }, 3000);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, isSupporter, state, callId, shortName]);
+  }, [dispatch, isSupporter, state, callId, shortName, polls]);
 
   if (!call) return null;
 
