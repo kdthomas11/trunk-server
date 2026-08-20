@@ -32,16 +32,23 @@ const TranscriptPane = ({ call }) => {
   const state = call ? call.transcriptState : null;
 
   // A call arrives over the socket before it has been transcribed, so poll for
-  // the one being looked at until the transcript lands. Bounded: six tries at
-  // three seconds. Transcription takes five or six seconds in practice, and a
-  // call that has not produced one by twenty never will - noise, or a failure -
-  // so there is nothing left to wait for.
-  // `polls` is state, not a ref, and that is the whole point. A ref does not
-  // re-render, so incrementing one left this effect's dependencies untouched
-  // and no second timer was ever scheduled: the pane polled exactly once, three
-  // seconds in, and stopped. Transcription usually takes longer than that, so
-  // the single answer was almost always still "pending" and the pane sat on
-  // "Transcribing…" until the page was reloaded by hand.
+  // the one being looked at until the transcript lands.
+  //
+  // `polls` is state, not a ref. A ref does not re-render, so incrementing one
+  // leaves this effect's dependencies untouched and no second timer is ever
+  // scheduled - the pane polled once, three seconds in, and stopped.
+  //
+  // How long to wait has to scale with the call. Whisper runs at roughly a
+  // quarter of realtime here, so a two-minute net over needs about thirty
+  // seconds, plus up to two more for the worker to notice it. The original
+  // fixed eighteen seconds came from short trunked-radio overs that transcribe
+  // in five; on a net it expired seconds before the transcript landed, every
+  // time. Floor for short overs, ceiling so a call that has genuinely failed
+  // does not poll for ever.
+  const POLL_MS = 3000;
+  const budgetMs = Math.min(180000, 20000 + (call && call.len ? call.len : 0) * 500);
+  const maxPolls = Math.ceil(budgetMs / POLL_MS);
+
   const [polls, setPolls] = useState(0);
 
   useEffect(() => {
@@ -50,15 +57,15 @@ const TranscriptPane = ({ call }) => {
 
   useEffect(() => {
     if (!callId || !isSupporter || state !== "pending") return;
-    if (polls >= 6) return;
+    if (polls >= maxPolls) return;
 
     const timer = setTimeout(() => {
       setPolls((n) => n + 1);
       dispatch(fetchCall({ shortName: (call && call.shortName) || shortName, callId }));
-    }, 3000);
+    }, POLL_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispatch, isSupporter, state, callId, shortName, polls]);
+  }, [dispatch, isSupporter, state, callId, shortName, polls, maxPolls]);
 
   if (!call) return null;
 

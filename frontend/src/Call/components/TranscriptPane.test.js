@@ -93,15 +93,50 @@ describe('waiting for a transcript', () => {
     expect(global.fetch).toHaveBeenCalledTimes(3);
   });
 
-  it('gives up after six tries rather than polling for ever', async () => {
-    renderPane(pendingCall());
+  /**
+   * The window scales with the call, because transcription does. Whisper runs
+   * at about a quarter of realtime, so an 80-second net over needs roughly
+   * twenty seconds and a short over needs five. A fixed eighteen seconds - what
+   * this used to be - expired before most net traffic finished.
+   */
+  it('waits longer for a long call than a short one', async () => {
+    // A 10s over: 20s floor + 5s, so 9 polls.
+    const short = renderPane(pendingCall({ len: 10 }));
+    for (let i = 0; i < 12; i++) await advance(3000);
+    const shortPolls = global.fetch.mock.calls.length;
+    short.unmount();
 
+    global.fetch.mockClear();
+
+    // An 80s net over: 20s + 40s, so 20 polls.
+    const long = renderPane(pendingCall({ len: 80 }));
+    for (let i = 0; i < 25; i++) await advance(3000);
+    const longPolls = global.fetch.mock.calls.length;
+    long.unmount();
+
+    expect(shortPolls).toBe(9);
+    expect(longPolls).toBe(20);
+  });
+
+  it('still gives up rather than polling for ever', async () => {
     // One interval at a time: each poll only schedules the next once the
-    // re-render it causes has happened, so jumping thirty seconds in one go
-    // would fire a single timer and prove nothing.
-    for (let i = 0; i < 10; i++) await advance(3000);
+    // re-render it causes has happened, so jumping ahead in one go would fire a
+    // single timer and prove nothing.
+    renderPane(pendingCall({ len: 10 }));
 
-    expect(global.fetch).toHaveBeenCalledTimes(6);
+    for (let i = 0; i < 30; i++) await advance(3000);
+
+    // Bounded by the 25s budget for a 10s call, not still running at 90 seconds.
+    expect(global.fetch).toHaveBeenCalledTimes(9);
+  });
+
+  it('caps the wait even for an absurdly long call', async () => {
+    // 600s is the server's own maximum; the budget ceiling is three minutes.
+    renderPane(pendingCall({ len: 600 }));
+
+    for (let i = 0; i < 80; i++) await advance(3000);
+
+    expect(global.fetch).toHaveBeenCalledTimes(60);
   });
 
   it('stops as soon as the transcript arrives', async () => {
