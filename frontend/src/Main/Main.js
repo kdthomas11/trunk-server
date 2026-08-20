@@ -320,8 +320,17 @@ const Main = (props) => {
                 Don't just scan, hear it all!
               </Header>
               <p style={{ fontSize: '1.33em' }}>
-                Most large cities use trunked radio systems to get the most use out of their assigned radio spectrum. With trunked systems, the transmission are constantly hopping to different frequencies. Using a cheap Software Defined Radio (SDR), it is possible capture all of the transmission on a system.
-                Instead of scanning to a single frequency, SDR capturea wide swathes of spectrum, covering all of the frequencies a system could use.
+                Amateur radio repeaters allow operators to communicate over greater distances by
+                receiving a transmission and retransmitting it on another frequency.{' '}
+                {process.env.REACT_APP_SITE_NAME} monitors these repeater frequencies and captures
+                the radio traffic as it happens.
+              </p>
+              <p style={{ fontSize: '1.33em' }}>
+                Instead of requiring users to have their own radio tuned to the repeater,{' '}
+                {process.env.REACT_APP_SITE_NAME} makes that audio available online for near-live
+                playback so you don't miss any traffic. This allows you to listen to repeater
+                traffic from virtually anywhere, using a web browser on your computer or mobile
+                device.
               </p>
             </Container>
           </Segment>
