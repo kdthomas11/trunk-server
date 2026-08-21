@@ -55,15 +55,34 @@ server {
         add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
 
         server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};
+		# Report-Only, deliberately, and it should stay that way until the console
+		# is confirmed clean during actual playback.
+		#
+		# The enforcing version of this policy broke audio twice. MediaPlayer.js
+		# loads call audio three different ways and each answers to a different
+		# directive: WaveSurfer fetches the url (connect-src), an <audio> element
+		# gets the same url (media-src), and a silent base64 clip unlocks autoplay
+		# on mobile (media-src data:). Getting one right and missing another still
+		# breaks playback, and no amount of reading the policy finds that - only
+		# loading a call does.
+		#
+		# Report-Only reports violations and blocks nothing, so the site works
+		# while the policy is proven against real traffic. Flip the header name to
+		# Content-Security-Policy once a play-through logs no violations.
+		#
 		# Defence in depth - no XSS sink was found in the app. 'unsafe-inline'
 		# is unavoidable for now: React inline styles need it for style-src, and
 		# the gtag bootstrap in public/index.html is an inline script. Tightening
 		# script-src to a nonce means templating index.html per request.
 		#
+		# media.${DOMAIN_NAME} has to be in connect-src, not just media-src:
+		# WaveSurfer loads call audio with fetch(), which connect-src governs.
+		# Having it only in media-src blocked playback outright.
+		#
 		# fonts.googleapis.com / fonts.gstatic.com are Semantic UI pulling Lato.
 		# Found by loading the page with this policy on and reading the console,
 		# which is the only way to get a CSP right the first time.
-		add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://img.buymeacoffee.com https://www.googletagmanager.com https://www.google-analytics.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' https://api.${DOMAIN_NAME} https://media.${DOMAIN_NAME}; connect-src 'self' https://api.${DOMAIN_NAME} https://account.${DOMAIN_NAME} wss://api.${DOMAIN_NAME} https://www.google-analytics.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+		add_header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://img.buymeacoffee.com https://www.googletagmanager.com https://www.google-analytics.com; font-src 'self' data: https://fonts.gstatic.com; media-src 'self' blob: data: https://api.${DOMAIN_NAME} https://media.${DOMAIN_NAME}; connect-src 'self' https://api.${DOMAIN_NAME} https://account.${DOMAIN_NAME} https://media.${DOMAIN_NAME} wss://api.${DOMAIN_NAME} https://www.google-analytics.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 	include /etc/nginx/security-headers.conf;
 	# Upstream hostnames held in variables so nginx resolves them per request
 	# instead of caching the address from config load. See the resolver in
