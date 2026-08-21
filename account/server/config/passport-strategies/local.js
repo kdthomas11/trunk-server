@@ -51,8 +51,32 @@ const local = new LocalStrategy({
 		console.error("Auth Error - user has not accepted TOS: " + email);
 		return done(null, false, { message: `User has not accepted the Terms of Service`, reason: "unaccepted TOS"})
 	}*/
-	user.comparePassword(password, (err, isMatch) => {
+	user.comparePassword(password, async (err, isMatch) => {
+		if (err) {
+			// A comparison that could not be performed is not a failed password.
+			// Reporting it as one would send someone off to reset a password
+			// that was correct.
+			console.error("Auth Error - could not compare password: " + err);
+			return done(err);
+		}
 		if (isMatch) {
+			// The one moment the plaintext is both available and already proven
+			// correct, so it is the only place an old hash can be upgraded
+			// without asking anyone to reset anything. Accounts made before the
+			// cost went from 8 to 12 move across as their owners sign in.
+			//
+			// Wrapped because failing here must never cost someone a valid
+			// login: they typed the right password, and the hash they already
+			// have still works.
+			if (user.needsRehash()) {
+				try {
+					user.password = password;   // the pre-save hook does the hashing
+					await user.save();
+					console.log("Upgraded password hash on sign-in for: " + user.callsign);
+				} catch (rehashErr) {
+					console.error("Could not upgrade password hash for " + user.callsign + ": " + rehashErr);
+				}
+			}
 			return done(null, user)
 		} else {
 			console.error("Auth Error - password mismatch: " + email);

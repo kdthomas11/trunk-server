@@ -182,6 +182,50 @@ MongoDB is used in the backend to store data. It is pretty fast, flexible and ha
 All of the files that MongoDB uses to store the DB are in the */data* directory, which gets mapped into the container. 
 Mapping this directory makes sure that the data persists each time you run the mongo container.
 
+### Mongo authentication
+
+The mongo container runs with `--auth`, so every service authenticates. Mongo
+publishes no ports and is reachable only from the internal `node` network, but
+that containment used to be the *only* thing protecting it: anything running on
+that network could read password hashes, the system API keys and the session
+store.
+
+Two things are easy to get wrong here.
+
+**The user must live in the `scanner` database, not `admin`.** Four services
+build their own connection URL — `backend/config/mongo-url.js`, the account and
+admin `config/secrets.js`, and `frontend/server/db.js` — and none of them set an
+`authSource`. With the user in `scanner`, the default (the database named in the
+URL) is correct for all four. Putting it in `admin` works for one and breaks the
+other three.
+
+**`MONGO_INITDB_ROOT_USERNAME` does nothing on an existing database.** It only
+fires against an empty data directory. On a server that already holds
+recordings, create the user first and turn on `--auth` afterwards.
+
+On a new host, with `--auth` not yet enabled, create the user and let mongosh
+prompt for the password so it never lands in your shell history:
+
+```bash
+docker compose exec mongo mongosh scanner --quiet --eval 'db.createUser({user:"hamrecorder", pwd:passwordPrompt(), roles:[{role:"readWrite",db:"scanner"},{role:"dbAdmin",db:"scanner"}]})'
+```
+
+Then set `MONGO_USER` and `MONGO_PASSWORD` in your env file, confirm the mongo
+service has `command: ["--auth"]`, and restart the stack.
+
+To check which services actually authenticated, look for the line each one logs
+at startup:
+
+```bash
+docker compose logs backend account admin transcriber | grep -i "authentication for MongoDB"
+```
+
+A service that connects without printing that line is still connecting
+anonymously — which, with `--auth` on, means it is failing and retrying rather
+than working. The frontend is the one to watch: `frontend/server/index.js` calls
+`process.exit(1)` if its first connection fails, and the container restarts
+always, so a missed credential there is a crash loop rather than a warning.
+
 ### Working with the MongoDB Container
 
 From the Host OS run:

@@ -123,18 +123,57 @@ UserSchema.pre("save", function(next) {
 });
 
 /**
+ * Work factor for new hashes.
+ *
+ * Was 8, which is below current guidance - OWASP puts the floor at 10 and 12 in
+ * practice - and materially cheapens an offline attack if the database is ever
+ * taken. Raising it was only safe once the hashing moved off the *Sync calls:
+ * bcrypt at cost 12 takes roughly 300ms, and hashSync/compareSync block the
+ * whole event loop for that long, not just the one request. Bumping the cost
+ * without this change would have been a self-inflicted denial of service.
+ *
+ * Existing hashes are upgraded on next successful sign-in - see needsRehash
+ * below and its caller in config/passport-strategies/local.js. Nobody has to
+ * reset a password.
+ */
+const BCRYPT_COST = 12;
+
+/**
  * Password hash middleware.
  */
 UserSchema.pre("save", function(next) {
     if(!this.isModified("password")) {
         return next();
     }
-	hashed = bcrypt.hashSync(this.password, 8);
-	this.password = hashed;
-	this.local.password = hashed;
-
-    next();
+    // `hashed` used to be an undeclared assignment, so it was a global. Harmless
+    // only because hashSync blocked; with the async call below, two concurrent
+    // saves would have raced on it.
+    bcrypt.hash(this.password, BCRYPT_COST, (err, hashed) => {
+        if (err) return next(err);
+        this.password = hashed;
+        // Some legacy documents have no `local` subdocument at all, and
+        // comparePassword reads from it - so a user saved without this would
+        // have a hash nothing could check against.
+        if (!this.local) this.local = {};
+        this.local.password = hashed;
+        next();
+    });
 });
+
+/**
+ * True when this account's hash predates BCRYPT_COST and should be upgraded.
+ *
+ * getRounds throws on anything that is not a bcrypt hash, which includes the
+ * empty string and undefined. An account we cannot read the cost of is left
+ * alone rather than rehashed on a guess.
+ */
+UserSchema.methods.needsRehash = function() {
+	try {
+		return bcrypt.getRounds(this.local.password) < BCRYPT_COST;
+	} catch (err) {
+		return false;
+	}
+};
 
 /*
  Defining our own custom document instance method
@@ -150,7 +189,17 @@ UserSchema.pre("save", function(next) {
  }*/
 
  UserSchema.methods.comparePassword = function(plaintext, callback) {
-    return callback(null, bcrypt.compareSync(plaintext, this.local.password));
+    // bcrypt.compare, not compareSync: the sync form blocks the event loop for
+    // the whole hash, so every concurrent request waits on one sign-in. At cost
+    // 12 that is around 300ms per login.
+    //
+    // The guard matters as much as the async move. bcrypt throws "Illegal
+    // arguments" when the stored hash is undefined or empty, which turned an
+    // account with no password set into a 500 instead of a refused login.
+    if (!this.local || typeof this.local.password !== "string" || this.local.password.length === 0) {
+        return callback(null, false);
+    }
+    return bcrypt.compare(plaintext, this.local.password, callback);
 };
 
 

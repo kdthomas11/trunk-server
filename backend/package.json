@@ -9,7 +9,6 @@
     "@opentelemetry/auto-instrumentations-node": "^0.50.2",
     "@opentelemetry/resources": "^1.26.0",
     "@smithy/node-http-handler": "^3.2.4",
-    "adm-zip": "^0.5.18",
     "axios": "1.19.0",
     "body-parser": "1.20.6",
     "bson": "6.10.4",

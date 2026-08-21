@@ -29,9 +29,11 @@ const s3_force_path_style = (process.env['S3_FORCE_PATH_STYLE'] ?? 'false') === 
 // Shorter than this is a kerchunk - a keyed mic with nothing said - and is
 // marked skipped rather than queued for transcription.
 const TRANSCRIBE_MIN_LEN = parseFloat(process.env['TRANSCRIBE_MIN_LEN'] ?? '1.5');
-const host = process.env['MONGO_NODE_DRIVER_HOST'] != null ? process.env['MONGO_NODE_DRIVER_HOST'] : 'mongo';
-const port = process.env['MONGO_NODE_DRIVER_PORT'] != null ? process.env['MONGO_NODE_DRIVER_PORT'] : 27017;
-const mongoUrl = 'mongodb://' + host + ':' + port + '/scanner';
+// Built in config/mongo-url.js, not here. This file used to assemble its own
+// from MONGO_NODE_DRIVER_* and ignore MONGO_USER / MONGO_PASSWORD entirely, so
+// enabling Mongo authentication would have left the API connected while audio
+// ingest stopped - with nothing in the UI to show for it.
+const mongoUrl = require("../config/mongo-url");
 
 
 // `asPromise()` returns a promise that resolves to the connection

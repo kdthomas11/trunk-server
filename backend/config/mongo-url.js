@@ -10,30 +10,45 @@
  * module, so the "using authentication" line below is logged once rather than
  * per caller.
  *
- * NOT the only way a Mongo URL is built in this service, and deliberately not
- * yet unified with the others, because they are not the same decision:
+ * Now the ONLY way a Mongo URL is built in this service. controllers/uploads.js
+ * and transcribe-worker.js used to assemble their own from
+ * MONGO_NODE_DRIVER_HOST / MONGO_NODE_DRIVER_PORT, honouring neither
+ * MONGO_USER nor MONGO_PASSWORD - the transcriber was handed both credentials
+ * in docker-compose.yml and ignored them. Everything resolved to the same
+ * 'mongo' host, so nothing was broken while authentication was off. Turn
+ * authentication on and the API would have connected while audio ingest and
+ * transcription silently stopped: the two paths with nobody watching them.
  *
- *   controllers/uploads.js  and  transcribe-worker.js  read
- *   MONGO_NODE_DRIVER_HOST / MONGO_NODE_DRIVER_PORT rather than MONGO_HOST /
- *   MONGO_PORT, and neither honours MONGO_USER / MONGO_PASSWORD at all. The
- *   transcriber is handed both credentials in docker-compose.yml and ignores
- *   them. Every one of these resolves to the same 'mongo' host today, so
- *   nothing is broken - but turn on Mongo authentication and the API would
- *   connect while uploads and transcription would not.
- *
- * Pointing those two at this module is a configuration change rather than a
- * refactor, so it wants a deliberate decision about which variable wins.
+ * Which variable wins: MONGO_HOST / MONGO_PORT, falling back to the
+ * MONGO_NODE_DRIVER_* pair so a deployment that only sets those keeps working.
+ * Both are read here so there is one place to look.
  */
-const mongo_host = typeof process.env['MONGO_HOST'] !== 'undefined' ? process.env['MONGO_HOST'] : 'mongo';
-const mongo_port = typeof process.env['MONGO_PORT'] !== 'undefined' ? process.env['MONGO_PORT'] : 27017;
+const mongo_host = process.env['MONGO_HOST']
+  || process.env['MONGO_NODE_DRIVER_HOST']
+  || 'mongo';
+const mongo_port = process.env['MONGO_PORT']
+  || process.env['MONGO_NODE_DRIVER_PORT']
+  || 27017;
 const mongo_user = process.env['MONGO_USER'];
 const mongo_password = process.env['MONGO_PASSWORD'];
 
 let mongoUrl;
 
-if ((typeof mongo_user !== 'undefined') && (typeof mongo_password !== 'undefined')) {
+// Truthiness, not typeof. These arrive from docker-compose as empty strings
+// when the variable is declared but unset in the env file, and `typeof "" !==
+// 'undefined'` is true - which built mongodb://:@mongo:27017/scanner and failed
+// to connect with an authentication error that named no user.
+if (mongo_user && mongo_password) {
   console.log("Using authentication for MongoDB - user: " + mongo_user);
-  mongoUrl = 'mongodb://' + mongo_user + ':' + mongo_password + '@' + mongo_host + ':' + mongo_port + '/scanner';
+  // Percent-encoded: a password containing @ / : or ? otherwise terminates the
+  // userinfo section early and the URL parses into something else entirely.
+  // No authSource: the user is created in `scanner`, so the default - the
+  // database named in the URL - is right. Deliberate, because account, admin
+  // and the frontend server each build their own URL and none of them can set
+  // an authSource. Putting the user in `admin` would have worked here and
+  // broken all three.
+  mongoUrl = 'mongodb://' + encodeURIComponent(mongo_user) + ':' + encodeURIComponent(mongo_password)
+    + '@' + mongo_host + ':' + mongo_port + '/scanner';
 } else {
   mongoUrl = 'mongodb://' + mongo_host + ':' + mongo_port + '/scanner';
 }

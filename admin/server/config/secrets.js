@@ -10,9 +10,20 @@ const mongo_password = process.env['MONGO_PASSWORD'];
 
 let mongoUrl;
 
-if ((typeof mongo_user !== 'undefined') && (typeof mongo_password !== 'undefined')) {
+// Truthiness, not typeof. Compose passes these through as empty strings when
+// the variable is declared but unset in the env file, and `typeof "" !==
+// 'undefined'` is true - which built mongodb://:@mongo:27017/scanner and then
+// failed to authenticate with an error naming no user.
+//
+// No authSource: the user lives in `scanner`, so the default - the database in
+// the URL - is the right one. Matches backend/config/mongo-url.js.
+//
+// Percent-encoded: a password containing @ : / or ? would otherwise terminate
+// the userinfo section early.
+if (mongo_user && mongo_password) {
   console.log("Using authentication for MongoDB - user: " + mongo_user);
-  mongoUrl = 'mongodb://' + mongo_user + ':' + mongo_password + '@' + mongo_host + ':' + mongo_port + '/scanner';
+  mongoUrl = 'mongodb://' + encodeURIComponent(mongo_user) + ':' + encodeURIComponent(mongo_password)
+    + '@' + mongo_host + ':' + mongo_port + '/scanner';
 } else {
   mongoUrl = 'mongodb://' + mongo_host + ':' + mongo_port + '/scanner';
 }

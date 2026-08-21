@@ -8,13 +8,20 @@ const mongoose = require('mongoose');
 const callSchema = require('./models/callSchema');
 const worker = require('./transcription/worker');
 
-const host = process.env['MONGO_NODE_DRIVER_HOST'] ?? 'mongo';
-const port = process.env['MONGO_NODE_DRIVER_PORT'] ?? 27017;
-const mongoUrl = `mongodb://${host}:${port}/scanner`;
+// Built in config/mongo-url.js, not here. This file assembled its own from
+// MONGO_NODE_DRIVER_* and ignored MONGO_USER / MONGO_PASSWORD, which
+// docker-compose has been handing this service all along. Enabling Mongo
+// authentication would have stopped transcription silently.
+const mongoUrl = require('./config/mongo-url');
+
+/** The URL with any password taken out, so it is safe to log. */
+function redactedUrl(url) {
+  return url.replace(/\/\/[^@/]*@/, '//<credentials>@');
+}
 
 async function main() {
   await mongoose.connect(mongoUrl);
-  console.log(new Date().toISOString(), '[transcriber]', `connected to ${mongoUrl}`);
+  console.log(new Date().toISOString(), '[transcriber]', `connected to ${redactedUrl(mongoUrl)}`);
 
   const Call = mongoose.model('Call', callSchema);
 

@@ -51,6 +51,8 @@ services:
       - FREE_PLAN_ARCHIVE
       - PRO_PLAN_ARCHIVE
     image: "mongo:${TAG}-${STAGE}"
+    # See "Mongo authentication" in README.md.
+    command: ["--auth"]
     volumes:
       - ${PWD}/data/mongo:/data/db
     networks:
@@ -210,6 +212,12 @@ services:
     image: "frontend:${TAG}-${STAGE}"
     environment:
         - MONGO_NODE_DRIVER_HOST=mongo
+        # server/index.js connects to Mongo at startup and calls process.exit(1)
+        # if it cannot, and this container restarts always - so without these it
+        # crash-loops the moment Mongo requires authentication, taking the whole
+        # site down rather than degrading.
+        - MONGO_USER
+        - MONGO_PASSWORD
         - REACT_APP_BACKEND_SERVER
         - REACT_APP_FRONTEND_SERVER
         - REACT_APP_ACCOUNT_SERVER
