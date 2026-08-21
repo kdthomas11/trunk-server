@@ -20,6 +20,7 @@ const Group = require("./models/group");
 var multer = require('multer');
 const sessionMiddleware = require('./config/session');
 const { requireListener, resolveListener } = require('./middleware/auth');
+const limits = require('./config/rate-limits');
 
 // -------------------------------------------
 var app = express();
@@ -143,8 +144,15 @@ app.post('/:shortName/upload', upload.single('call'), uploads.upload, async func
 
 /*------    SYSTEMS   ---------- signed-in listeners only */
 app.get('/systems', requireListener, addSystemClients, systems.get_systems);
-app.post('/:shortName/contact', systems.contact_system);
-app.post('/:shortName/authorize', systems.authorize_system);
+// Contact is reached from the systems list, which a signed-out visitor cannot
+// see, so requiring a listener costs nothing in the UI and takes the endpoint
+// off the open internet. It sent mail through our Mailjet account to the system
+// owner and the admin address, with no session and no cap - the limiter behind
+// it is the second line, not the only one.
+app.post('/:shortName/contact', requireListener, limits.contactLimiter, systems.contact_system);
+// Cannot take a session: trunk-recorder calls this at startup to check its
+// config and has no cookie to offer. The limiter is the only brake here.
+app.post('/:shortName/authorize', limits.authorizeLimiter, systems.authorize_system);
 
 /*------    TALKGROUPS   ----------*/
 app.get('/:shortName/talkgroups', requireListener, talkgroups.get_talkgroups);
@@ -158,42 +166,18 @@ app.get('/:shortName/stats', stats.get_stats);
 app.get('/stats', addTotalClients, sys_stats.siteStats)
 
 
-function get_clients(req, res) {
-  if (req.params.shortName) {
-    var short_name = req.params.shortName.toLowerCase();
-  } else {
-    var short_name = null;
-  }
-  var total = 0;
-  var response = [];
-  for (var key in clients) {
-    if (clients.hasOwnProperty(key)) {
-      total++;
-      if (!short_name || (clients[key].shortName == short_name)) {
-        var age = (Date.now() - clients[key].timestamp) / 1000;
-        var obj = {
-          shortName: clients[key].shortName,
-          filterCode: clients[key].filterCode,
-          filterName: clients[key].filterName,
-          filterType: clients[key].filterType,
-          filterStarred: clients[key].filterStarred,
-          active: clients[key].active,
-          talkgroupNums: clients[key].talkgroupNums,
-          timestamp: age
-        }
-        response.push(obj);
-      }
-    }
-  }
-  response.push({ "total": total });
+/*------    CLIENTS   ----------
+   Removed. GET /clients and GET /:shortName/clients took no session and
+   returned a row per connected socket - which system each listener was on,
+   their talkgroup filter, whether they were viewing only starred calls.
 
-  res.contentType('json');
-  res.send(JSON.stringify(response));
-}
+   Nothing called them: no reference in frontend/src, admin/src or account/src.
+   They were upstream code. Gating them would have left the surface in place and
+   given us more to maintain; deleting them cannot regress anything.
 
-/*------    CLIENTS   ----------*/
-app.get('/clients', get_clients);
-app.get('/:shortName/clients', get_clients);
+   Not to be confused with /stats, which is what the front page counters use.
+   That returns three aggregates and is deliberately public - it renders for
+   signed-out visitors on the landing page.                                    */
 app.use(function (err, req, res, next) {
   console.error("Caught an error");
   console.error(err.stack);

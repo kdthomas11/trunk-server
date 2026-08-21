@@ -1,4 +1,19 @@
-limit_req_zone $binary_remote_addr zone=perip:10m rate=1r/s;
+# Per-IP throttling for the two endpoints on api.* that take no session:
+# /:shortName/contact sends mail through our Mailjet account, and
+# /:shortName/authorize answers whether a system API key is valid. Both are
+# limited in the application as well (backend/config/rate-limits.js); this is
+# the per-IP half, which those limiters cannot do - they count in one
+# container's memory and contact keys on the system being mailed, not on who is
+# asking.
+#
+# Nothing else here is throttled, on purpose. A blanket limit on the API host
+# would also catch audio range requests, the socket.io poll and the call list -
+# a listener running autoplay would start collecting 429s mid-playback.
+#
+# The zone this replaced was declared and never applied to a single location,
+# which is worse than having none: it reads as though the site is throttled.
+limit_req_zone $binary_remote_addr zone=unauth:10m rate=10r/m;
+limit_req_status 429;
 
 server {
 	listen 80;
@@ -115,6 +130,15 @@ server {
 			root /var/www/certbot;
 		}
 
+
+	# Regex location: beats the prefix `location /` below, so these two paths
+	# are throttled and nothing else on this host is.
+	location ~ ^/[^/]+/(contact|authorize)$ {
+		limit_req zone=unauth burst=5 nodelay;
+		proxy_pass http://$upstream_backend:3005$request_uri;
+		include /etc/nginx/proxy.conf;
+		access_log /dev/stdout main;
+	}
 
 	location / {
 		proxy_pass http://$upstream_backend:3005$request_uri;

@@ -21,7 +21,7 @@ const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 
 /** Fail if fewer than this many tests ran. Bump when you add tests. */
-const FLOOR = 13;
+const FLOOR = 28;
 
 const pattern = path.join(__dirname, "**", "*.test.js");
 

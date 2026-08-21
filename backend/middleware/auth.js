@@ -8,7 +8,38 @@
  * Deliberately not used on /:shortName/upload - trunk-recorder is a headless
  * client that cannot hold a cookie, and authenticates with its API key instead.
  */
+const crypto = require("crypto");
+
 const User = require("../models/user");
+
+/**
+ * Constant-time comparison of a submitted system API key against the stored one.
+ *
+ * Both callers - controllers/uploads.js and controllers/systems.js - used `!==`
+ * and `!=`, which return as soon as two bytes differ and so leak how much of a
+ * guess was right. Over the internet that signal is buried in jitter, so this is
+ * closing a theoretical gap rather than a live one; it costs nothing.
+ *
+ * timingSafeEqual throws unless both buffers are the same length, and the length
+ * of the stored key is not a secret worth protecting (they are all 32 hex
+ * characters from crypto.randomBytes(16)), so an early length check is fine.
+ *
+ * Note what this does NOT fix: keys are still stored in plaintext, so anyone who
+ * can read the database has them outright. That is the substantive half, and
+ * hashing them is a product decision - owners could no longer retrieve a lost
+ * key from the admin portal, only regenerate it.
+ */
+function keysMatch(submitted, stored) {
+  if (typeof submitted !== "string" || typeof stored !== "string") return false;
+  // Both empty is the case worth spelling out: timingSafeEqual answers true for
+  // two zero-length buffers, so without this a system whose key was never set
+  // could be opened by sending an empty one.
+  if (submitted.length === 0 || stored.length === 0) return false;
+  if (submitted.length !== stored.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(submitted), Buffer.from(stored));
+}
+
+exports.keysMatch = keysMatch;
 
 function deny(res, message, reason) {
   res.status(401);

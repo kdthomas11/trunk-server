@@ -1,6 +1,7 @@
 var mongoose = require("mongoose");
 var User = require("../models/user");
 var System = require("../models/system");
+const { keysMatch } = require("../middleware/auth");
 const Mailjet = require('node-mailjet');
 var schedule = require('node-schedule');
 
@@ -15,7 +16,47 @@ const mailjet = new Mailjet({
 
 var systemList = [];
 
+// The contact form's fields were passed straight into a Mailjet send with no
+// length check, so a caller decided how much mail left our account and how big
+// each message was. These are generous for someone reporting a problem with a
+// feed and small enough that the endpoint is not worth using as a pipe.
+const MAX_NAME = 100;
+const MAX_EMAIL = 254;   // the longest address RFC 5321 allows
+const MAX_MESSAGE = 2000;
+
+// Deliberately loose. This is not validating that the address exists - it is
+// refusing the shapes that have no business in a From/ReplyTo header, notably
+// anything carrying a newline. Mailjet's JSON API is not raw SMTP, so this is
+// belt and braces rather than the only thing standing between us and header
+// injection.
+const EMAIL_SHAPE = /^[^\s@,;:<>"]+@[^\s@,;:<>"]+\.[^\s@,;:<>"]+$/;
+
+/**
+ * Returns a trimmed string, or null when the field is missing, empty, not a
+ * string, or longer than max. Body fields arrive as whatever the sender chose -
+ * an array or an object here would otherwise reach the mail template.
+ */
+function field(value, max) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > max) return null;
+  return trimmed;
+}
+
 exports.contact_system = async function (req, res) {
+  const senderName = field(req.body.name, MAX_NAME);
+  const senderEmail = field(req.body.email, MAX_EMAIL);
+  const senderMessage = field(req.body.message, MAX_MESSAGE);
+
+  if (!senderName || !senderEmail || !senderMessage || !EMAIL_SHAPE.test(senderEmail)) {
+    res.status(400);
+    res.json({
+      success: false,
+      message: "Please provide your name, a valid email address, and a message."
+    });
+    return;
+  }
+
   var system = await System.findOne({
     shortName: req.params.shortName.toLowerCase()
   }).catch(err => {
@@ -55,10 +96,10 @@ exports.contact_system = async function (req, res) {
     return;
   }
 
-  let message = "Thank you for contributing a feed to OpenMHz. A user has sent in a message about this feed:\n\n-------------------------------\n"
-  message = message + "User Name: " + req.body.name + "\n";
-  message = message + "User Email: " + req.body.email + "\n-------------------------------\n";
-  message = message + "Message:\n" + req.body.message + "\n-------------------------------\n\n";
+  let message = "Thank you for contributing a feed to " + site_name + ". A user has sent in a message about this feed:\n\n-------------------------------\n"
+  message = message + "User Name: " + senderName + "\n";
+  message = message + "User Email: " + senderEmail + "\n-------------------------------\n";
+  message = message + "Message:\n" + senderMessage + "\n-------------------------------\n\n";
   message = message + "If you wish to stop receiving User Messages for this System:\n - goto the Admin for " + site_name + ": " + admin_server + "\n - find this System\n - Update it and turn off this Allow Contact option."
   const request = mailjet.post("send", {
     version: "v3.1"
@@ -69,8 +110,8 @@ exports.contact_system = async function (req, res) {
         Name: site_name + " Admin"
       },
       ReplyTo: {
-        Email: req.body.email,
-        Name: req.body.name
+        Email: senderEmail,
+        Name: senderName
       },
       To: [{
         Email: user.email,
@@ -193,8 +234,11 @@ exports.authorize_system = async function (req, res) {
     return;
   }
 
-  if (apiKey != item.key) {
-    console.warn("[" + req.params.shortName + "] Error /:shortName/authorize API Key Mismatch - Provided key: " + apiKey);
+  // The submitted key used to be logged here. Logs go to syslog and are kept,
+  // so that turned every mistyped config into a durable record of a credential.
+  // That a mismatch happened is the useful part; the value never was.
+  if (!keysMatch(apiKey, item.key)) {
+    console.warn("[" + req.params.shortName + "] Error /:shortName/authorize API Key Mismatch");
     res.status(403);
     res.send("Invalid API Key\n");
     return;

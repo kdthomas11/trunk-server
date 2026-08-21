@@ -11,6 +11,7 @@ const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { fromIni } = require("@aws-sdk/credential-providers");
 const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const media = require('./media');
+const { keysMatch } = require('../middleware/auth');
 const https = require('https');
 
 const agent = new https.Agent({
@@ -130,17 +131,24 @@ exports.upload = async function (req, res, next) {
           return;
         }
 
-        patches = [];
+        // `const`, not a bare assignment. This was `patches = []` with no
+        // declaration, and the file is sloppy-mode CommonJS, so it was a
+        // module-level global shared by every request. It is written here,
+        // synchronously, but not read until the Call is built further down -
+        // after two awaits. Two uploads arriving together, which is routine on a
+        // busy repeater, meant the second one's list overwrote the first's and
+        // the first call was saved with the wrong patches.
+        const patches = [];
 
         let req_patches;
         req_patches = req.body.patch_list;
-      
+
         if(typeof req_patches != "undefined"){
           var split_patches = req_patches.replace("[","").replace("]","").split(",");
-      
+
           for (var patch in split_patches){
             patches.push(split_patches[patch]);
-          } 
+          }
         }
 
         let item = null;
@@ -166,10 +174,14 @@ exports.upload = async function (req, res, next) {
           res.status(500).send("ShortName does not exist: " + shortName + "\n");
           return;
         }
-        if (apiKey !== item.key) {
-          console.warn(`[${req.params.shortName}] Error /:shortName/upload API Key Mismatch - Provided key: ${apiKey}`);
+        // The submitted key used to be logged here. Logs are kept, so that made
+        // every mistyped trunk-recorder config a durable record of a credential.
+        // 401 rather than 500: this is a rejected credential, not a fault on our
+        // side, and answering 500 buried it among real errors in the logs.
+        if (!keysMatch(apiKey, item.key)) {
+          console.warn(`[${req.params.shortName}] Error /:shortName/upload API Key Mismatch`);
           discardTempFile(req);
-          res.status(500).send("API Keys do not match!\n");
+          res.status(401).send("API Keys do not match!\n");
           return;
         }
 
@@ -186,11 +198,11 @@ exports.upload = async function (req, res, next) {
           });
 
           if (!talkgroupExists) {
-            try {
-              fs.unlinkSync(req.file.path);
-            } catch (err) {
-              console.error(`[${call.shortName}] error deleting: ${req.file.path}`);
-            }
+            // Was `call.shortName`, but `call` is const-declared further down,
+            // so reaching this line threw a ReferenceError out of the catch
+            // rather than logging - turning a failed cleanup into a failed
+            // request. discardTempFile does the same unlink and logs safely.
+            discardTempFile(req);
             res.status(500).send("Talkgroup does not exist, skipping.\n");
             return;
           }

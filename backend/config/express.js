@@ -26,7 +26,11 @@ module.exports = function(app) {
 	// Keeping it makes it easier for an attacker to build the site's profile
 	// It can be removed safely
 	app.disable("x-powered-by")
-	app.enable('trust proxy')
+	// One hop - our own nginx - not `true`. `trust proxy: true` tells Express to
+	// believe the whole X-Forwarded-For chain, which any client can write, so it
+	// would let a caller spoof both req.ip in the logs and the key the rate
+	// limiters count against. Matches account/server/config/express.js.
+	app.set('trust proxy', 1)
 	app.use(bodyParser.json())
 	app.use(bodyParser.urlencoded({ extended: true }))
 	app.use(express.static(path.join(process.cwd(), 'public')));

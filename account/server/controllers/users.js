@@ -21,6 +21,26 @@ const mailjet = new Mailjet({
 		return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 	}
 
+/**
+ * Constant-time comparison of a confirm or reset token.
+ *
+ * The empty-string guard is the important part, not the timing. After a
+ * successful reset the stored token is set to "" rather than removed, so a
+ * stored value of "" means "there is no live token" - and it must never match,
+ * whatever arrives. `!=` happened to reject it because Express will not match an
+ * empty path segment for a required :token param, but that is the router's
+ * accident to keep, not this function's.
+ *
+ * Both tokens are 40 hex characters (crypto.randomBytes(20)), so comparing
+ * lengths first gives nothing away.
+ */
+const tokensMatch = (submitted, stored) => {
+	if (typeof submitted !== "string" || typeof stored !== "string") return false;
+	if (submitted.length === 0 || stored.length === 0) return false;
+	if (submitted.length !== stored.length) return false;
+	return crypto.timingSafeEqual(Buffer.from(submitted), Buffer.from(stored));
+}
+
 exports.isLoggedIn = function (req, res, next) {
   if (req.isAuthenticated()) return next();
   res.redirect("/login");
@@ -252,8 +272,13 @@ exports.confirmEmail = async function (req, res, next) {
     return;
   }
   const today = new Date();
-  if (user.confirmEmailTTL < today) {
-    res.status(500);
+  // The `!user.confirmEmailTTL` half matters: when the field is unset the
+  // comparison alone is `undefined < today`, which is false, so the expiry check
+  // passed. Nothing got through, because the token check below rejects an unset
+  // token - but that made this check load-bearing on the next one rather than on
+  // its own terms.
+  if (!user.confirmEmailTTL || user.confirmEmailTTL < today) {
+    res.status(400);
     console.error("Expired token for confirming email: " + userId);
     res.json({
       success: false,
@@ -261,11 +286,12 @@ exports.confirmEmail = async function (req, res, next) {
     });
     return;
   }
-  if (user.confirmEmailToken != token) {
-    res.status(500);
-    console.error(
-      "Token Mismatch DB: " + user.confirmEmailToken + " submitted: " + token
-    );
+  if (!tokensMatch(token, user.confirmEmailToken)) {
+    // Never log either token. This used to print the value currently valid in
+    // the database, and logs go to syslog and are kept - which turned every
+    // mistyped link into a durable record of a live credential.
+    res.status(400);
+    console.error("Token mismatch confirming email for user: " + userId);
     res.json({
       success: false,
       message: "token mismatch"
@@ -315,19 +341,21 @@ exports.resetPassword = async function (req, res, next) {
     return;
   }
   const today = new Date();
-  if (user.resetPasswordTTL < today) {
-    res.status(500);
+  // See the note on confirmEmail above - an unset TTL made this comparison
+  // `undefined < today`, which is false, so the expiry check passed on its own.
+  if (!user.resetPasswordTTL || user.resetPasswordTTL < today) {
+    res.status(400);
     res.json({
       success: false,
       message: "token expired"
     });
     return;
   }
-  if (user.resetPasswordToken != token) {
-    console.log(
-      "Token Mismatch DB: " + user.resetPasswordToken + " submitted: " + token
-    );
-    res.status(500);
+  if (!tokensMatch(token, user.resetPasswordToken)) {
+    // Never log either token. A reset token is valid for 24 hours and is a full
+    // account takeover; this used to print the live one from the database.
+    console.error("Token mismatch resetting password for user: " + userId);
+    res.status(400);
     res.json({
       success: false,
       message: "token mismatch"
@@ -339,6 +367,10 @@ exports.resetPassword = async function (req, res, next) {
   user.confirmEmail = true;
   user.confirmEmailToken = "";
   user.resetPasswordToken = "";
+  // Cleared alongside the token. Leaving it set left the account in a "valid
+  // TTL, empty token" state for the rest of the day, which is only harmless
+  // because tokensMatch refuses an empty stored token.
+  user.resetPasswordTTL = undefined;
   await user.save().catch(err => {
     console.error(err);
     res.json({
@@ -368,11 +400,13 @@ exports.sendResetPassword = async function (req, res, next) {
     return;
   });
   if (!user) {
-    console.error("Reset password failed. No user: " + req.body.email);
-    res.status(404);
+    // Answers exactly as it does for an address that does exist. Saying "no
+    // account registered for X" turned this into a free check for whether any
+    // given email has an account here. The caller sees the same "check your
+    // email" screen either way; only the log knows the difference.
+    console.error("Reset password requested for an address with no account: " + req.body.email);
     res.json({
-      success: false,
-      message: "No account register for " + req.body.email
+      success: true
     });
     return;
   }
