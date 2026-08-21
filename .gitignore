@@ -21,3 +21,10 @@ node_modules/
 # Python bytecode - the whisper container writes this into the bind mount
 __pycache__/
 *.pyc
+
+# Any dotted env variant.  used to be tracked while  was
+# ignored - two names differing only in word order, one published and one not,
+# which is a trap rather than a convention.
+.env
+.env.*
+env.example.openmhz-legacy

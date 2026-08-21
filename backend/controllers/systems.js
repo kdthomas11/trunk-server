@@ -69,7 +69,9 @@ exports.contact_system = async function (req, res) {
   });
   if (!system) {
     console.error("[contact_system] The Short Name does not exist: " + req.params.shortName.toLowerCase());
-    res.status(500);
+    // 404, not 500. There is nothing wrong on our side - the caller asked about
+    // a system that is not here.
+    res.status(404);
     res.json({
       success: false,
       message: "That Short Name does not exist."
@@ -78,7 +80,9 @@ exports.contact_system = async function (req, res) {
   }
   if (!system.allowContact) {
     console.error("[contact_system] This System does not allow user to contact the owner: " + req.params.shortName.toLowerCase());
-    res.status(500);
+    // 403: the request was understood and is refused. This is the owner's
+    // setting, not a fault.
+    res.status(403);
     res.json({
       success: false,
       message: "This System does not allow user to contact the owner."
@@ -229,7 +233,7 @@ exports.authorize_system = async function (req, res) {
 
   if (!item) {
     console.info("[" + req.params.shortName + "] Error /:shortName/authorize ShortName does not exist");
-    res.status(500);
+    res.status(404);
     res.send("Invalid System Name\n");
     return;
   }

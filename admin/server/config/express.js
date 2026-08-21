@@ -18,7 +18,12 @@ module.exports = function(app, passport) {
 	// Keeping it makes it easier for an attacker to build the site's profile
 	// It can be removed safely
 	app.disable("x-powered-by")
-	app.enable('trust proxy')
+	// One hop - our own nginx - not `true`. `trust proxy: true` believes the
+	// whole X-Forwarded-For chain, which any client can write, so it would let a
+	// caller spoof req.ip. This service administers the site; the address in its
+	// logs is the one you would go looking for afterwards. Matches account and
+	// backend.
+	app.set('trust proxy', 1)
 	app.use(bodyParser.json())
 	app.use(bodyParser.urlencoded({ extended: true }))
 	app.use(express.static(path.join(process.cwd(), 'public')));
@@ -77,21 +82,31 @@ module.exports = function(app, passport) {
 
 	    var origin = req.headers.origin;
 
+	    // Same shape as backend and account, which were corrected first. The "*"
+	    // fallback alongside Allow-Credentials: true was never a way in -
+	    // browsers reject that pair on a credentialed request - but it made a
+	    // broken CORS setup indistinguishable from a working one. An unknown
+	    // origin now gets no CORS headers, which is the honest answer.
+	    //
+	    // This service is the admin portal, so it is the one where an over-broad
+	    // answer would cost the most.
 	    if (allowedOrigins.indexOf(origin) > -1) {
 	        res.setHeader('Access-Control-Allow-Origin', origin);
-	    } else if (req.headers["user-agent"] == 'TrunkRecorder1.0') {
-	        res.setHeader('Access-Control-Allow-Origin', "*");
-	    } else {
-	        res.setHeader('Access-Control-Allow-Origin', "*");
-	        if (origin) {
-	          console.warn("forcing CORS for: " + origin + " referer: " + req.headers.referer);
-	        }
+	        // Required whenever the origin is echoed rather than fixed, so a
+	        // shared cache cannot hand one origin's response to another.
+	        res.setHeader('Vary', 'Origin');
+	        res.header('Access-Control-Allow-Credentials', 'true');
+	    } else if (origin) {
+	        console.warn("blocked CORS for: " + origin + " referer: " + req.headers.referer);
 	    }
-	    res.header("Access-Control-Allow-Headers", "X-Requested-With");
-		res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,WEBSOCKET');
-		res.header('Access-Control-Allow-Credentials', 'true');
-	    res.header("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Access-Control-Allow-Credentials, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Max-Age");
+
+		res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+	    res.header("Access-Control-Allow-Headers", "Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers");
 	    res.header('Access-Control-Max-Age', '600');
+
+	    if (req.method === 'OPTIONS') {
+	        return res.sendStatus(204);
+	    }
 	    next();
 	});
 }

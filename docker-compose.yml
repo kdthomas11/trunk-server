@@ -13,7 +13,11 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "5602:5602"
+      # 5602 was published here with nothing behind it: no server block in
+      # either vhost template, no upstream, no reference anywhere in the repo.
+      # An upstream leftover. Publishing a port opens it in the host firewall -
+      # docker writes its own iptables rules, so ufw does not cover it - which
+      # made this surface in exchange for nothing.
     restart: always
     volumes:
       - ${PWD}/data/log/syslog:/var/log/syslog

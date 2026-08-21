@@ -312,12 +312,26 @@ describe("the message that goes out", () => {
 		);
 	});
 
-	test("a system that has not opted in is never contacted", async () => {
+	/**
+	 * 403, not 500. The request was understood and is refused - this is the
+	 * owner's setting, not a fault on our side, and answering 500 buried it
+	 * among real errors in the log.
+	 */
+	test("a system that has not opted in is refused, not contacted", async () => {
 		storedSystem.allowContact = false;
 
 		const { status } = await postContact(VALID);
 
-		assert.notEqual(status, 200);
+		assert.equal(status, 403);
+		assert.deepEqual(sentMessages, []);
+	});
+
+	test("an unknown system is a 404", async () => {
+		storedSystem = null;
+
+		const { status } = await postContact(VALID);
+
+		assert.equal(status, 404);
 		assert.deepEqual(sentMessages, []);
 	});
 });

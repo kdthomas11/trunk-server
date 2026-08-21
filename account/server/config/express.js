@@ -86,21 +86,41 @@ module.exports = function(app, passport) {
 	    var origin = req.headers.origin;
 
 
+	    // Same shape as backend/config/express.js, which was corrected first.
+	    //
+	    // This answered "*" for anything unrecognised, alongside
+	    // Allow-Credentials: true. Browsers reject that pair outright on a
+	    // credentialed request, so it was never a way in - but it meant a real
+	    // CORS misconfiguration looked identical to a working one, with only a
+	    // "forcing CORS" line in the log to tell them apart. An unknown origin
+	    // now gets no CORS headers at all, which is the honest answer.
+	    //
+	    // The TrunkRecorder1.0 branch goes with it: it keyed off a user-agent,
+	    // which the caller writes, so it granted nothing the wildcard was not
+	    // already granting everyone. trunk-recorder is not a browser and is not
+	    // subject to CORS in the first place.
 	    if (allowedOrigins.indexOf(origin) > -1) {
 	        res.setHeader('Access-Control-Allow-Origin', origin);
-	    } else if (req.headers["user-agent"] == 'TrunkRecorder1.0') {
-	        res.setHeader('Access-Control-Allow-Origin', "*");
-	    } else {
-	        res.setHeader('Access-Control-Allow-Origin', "*");
-	        if (origin) {
-	          console.warn("forcing CORS for: " + origin + " referer: " + req.headers.referer);
-	        }
+	        // Required whenever the origin is echoed rather than fixed. Without
+	        // it a shared cache can hand one origin's response, Allow-Origin
+	        // header and all, to a different origin.
+	        res.setHeader('Vary', 'Origin');
+	        res.header('Access-Control-Allow-Credentials', 'true');
+	    } else if (origin) {
+	        console.warn("blocked CORS for: " + origin + " referer: " + req.headers.referer);
 	    }
-	    res.header("Access-Control-Allow-Headers", "X-Requested-With");
-		res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,WEBSOCKET');
-		res.header('Access-Control-Allow-Credentials', 'true');
-	    res.header("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Access-Control-Allow-Credentials, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers, Access-Control-Max-Age");
+	    // Requests with no Origin header - curl, server to server - are not
+	    // subject to CORS and need none of this.
+
+		res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+	    res.header("Access-Control-Allow-Headers", "Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers");
 	    res.header('Access-Control-Max-Age', '600');
+
+	    // Preflights end here. Credentialed cross-origin requests trigger them,
+	    // and they were previously falling through to the catch-all route.
+	    if (req.method === 'OPTIONS') {
+	        return res.sendStatus(204);
+	    }
 	    next();
 	});
 

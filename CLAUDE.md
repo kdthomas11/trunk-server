@@ -431,12 +431,21 @@ currently all of them.
   instrumentation for fastify, hapi, pg and Alibaba Cloud, none of which this
   app uses, and the exporter has no collector to talk to (`OTEL_SDK_DISABLED` is
   set locally purely to stop the connect-retry spam).
-- `account/server/config/express.js` falls back to
-  `Access-Control-Allow-Origin: *` alongside `Allow-Credentials: true` for
-  unknown origins. Browsers reject that combination, so it is not a leak, but it
-  is wrong and hides real CORS misconfiguration behind a warning log.
-- `.env.test` is tracked and holds a Stripe test secret key, inherited from
-  upstream. Raised and judged a non-blocker; nothing reads it.
+- ~~`account/server/config/express.js` falls back to
+  `Access-Control-Allow-Origin: *`~~ — fixed. All three services now refuse an
+  unknown origin by sending no CORS headers at all, and set `Vary: Origin` when
+  they echo one. The account service also had a *second* CORS handler in
+  `index.js`, running after the first and partly undoing it — it re-added
+  `Allow-Credentials` for origins the first had just refused. That one is gone;
+  `config/express.js` is the single copy, kept in step across all three
+  services.
+- ~~`.env.test` is tracked and holds a Stripe test secret key~~ — fixed. It is
+  untracked and renamed to `env.example.openmhz-legacy`, and `.gitignore` now
+  covers `.env` and `.env.*`. The real hazard was the pairing: a tracked
+  `.env.test` beside an ignored `test.env`, two names differing only in word
+  order, which invited real credentials into the published one. The file also
+  holds upstream's Mailjet key and secret — not ours to rotate, and public in
+  `openmhz/trunk-server` regardless.
 - The admin screens have not been driven in a browser end to end — the APIs are
   verified and the bundles contain the code, but rendering has only been checked
   statically. The in-app browser cannot sign in here (it blocks the cross-origin

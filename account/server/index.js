@@ -74,17 +74,16 @@ configurePassport(app, passport)
 configureExpress(app, passport)
 
 
-app.all('*', function (req, res, next) {
-	var allowedOrigins = [account_server, admin_server, frontend_server];
-	var origin = req.headers.origin;
-	if (allowedOrigins.indexOf(origin) > -1) {
-		res.setHeader('Access-Control-Allow-Origin', origin);
-	}
-	res.header("Access-Control-Allow-Credentials", "true");
-	res.header("Access-Control-Allow-Headers", "X-Requested-With");
-	res.header('Access-Control-Allow-Headers', 'Content-Type');
-	next();
-});
+// A second CORS handler used to sit here, running after the one in
+// config/express.js and partly undoing it. It echoed the origin from a narrower
+// list (no dev servers), overwrote Access-Control-Allow-Headers, never set
+// Vary: Origin, and set Access-Control-Allow-Credentials unconditionally - so an
+// origin the first handler had just refused got that header back anyway.
+//
+// Deleted rather than reconciled. config/express.js does this once, for a
+// superset of these origins, and is the copy kept in step with the backend and
+// admin services. Two handlers meant the effective policy was whichever ran
+// last, which is not something anyone should have to work out from the source.
 
 // -------------------------------------------
 app.use(express.static(path.join(__dirname, "public")));
