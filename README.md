@@ -213,6 +213,41 @@ docker compose exec mongo mongosh scanner --quiet --eval 'db.createUser({user:"h
 Then set `MONGO_USER` and `MONGO_PASSWORD` in your env file, confirm the mongo
 service has `command: ["--auth"]`, and restart the stack.
 
+### Enabling it on a server that is already running
+
+The `--auth` flag is committed, so it arrives on any host that pulls this
+branch. On a server that has been running without it, the order matters: pull
+the code but **do not restart the stack yet**.
+
+1. Create the user, while the running mongo still accepts anonymous connections.
+   `passwordPrompt()` keeps the password out of your shell history.
+
+   ```bash
+   docker compose exec mongo mongosh scanner --quiet --eval 'db.createUser({user:"hamrecorder", pwd:passwordPrompt(), roles:[{role:"readWrite",db:"scanner"},{role:"dbAdmin",db:"scanner"}]})'
+   ```
+
+2. Put the same values in `prod.env` as `MONGO_USER` and `MONGO_PASSWORD`.
+
+3. Check it before you restart anything:
+
+   ```bash
+   source prod.env && docker compose exec -e MONGO_USER -e MONGO_PASSWORD backend node scripts/check-mongo-auth.js
+   ```
+
+   It exits 0 only if the credentials actually connect and read. At this stage
+   it will also tell you `--auth` is not active yet, which is correct — it means
+   the credentials are ready and the restart is safe.
+
+4. Restart. `./docker-prod.sh up -d` picks up the new mongo `command` and the
+   new environment.
+
+5. Run the check again. It should now report that anonymous connections are
+   refused.
+
+**Rollback**, if step 5 goes wrong: remove `command: ["--auth"]` from the mongo
+service and restart. The user you created is harmless while auth is off, so
+nothing has to be undone in the database.
+
 To check which services actually authenticated, look for the line each one logs
 at startup:
 
