@@ -21,6 +21,19 @@ const assert = require("node:assert/strict");
 const express = require("express");
 const { ObjectId } = require("mongodb");
 
+// Must be set before controllers/systems.js is required: it builds a Mailjet
+// client at module load, and node-mailjet throws "Mailjet API_KEY is required"
+// when the key is empty. Nothing here sends mail - the prototype is replaced
+// below - so these only need to be non-empty for the require to succeed.
+// Conditional so a real environment wins.
+//
+// Without this the suite passes inside the container, where compose injects the
+// real values from test.env, and fails everywhere else. That is exactly what
+// happened: green locally, red in CI. account/server/test/login.test.js carries
+// the same guard and the same warning.
+process.env.MAILJET_KEY = process.env.MAILJET_KEY || "test-key";
+process.env.MAILJET_SECRET = process.env.MAILJET_SECRET || "test-secret";
+
 // --- stubs that must be in place before the controller is required ----------
 
 // systems.js calls load_systems() and schedule.scheduleJob() at module load.
