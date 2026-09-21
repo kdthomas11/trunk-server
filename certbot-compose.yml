@@ -25,9 +25,13 @@ services:
     volumes:
       - ${PWD}/data/certbot/www/:/var/www/certbot/:rw
       - ${PWD}/data/certbot/conf/:/etc/letsencrypt/:rw
+    # media.${DOMAIN_NAME} serves call audio out of MinIO. Every vhost shares
+    # this one certificate, so a host missing from this list gets a name
+    # mismatch in the browser rather than a missing certificate - nginx starts
+    # fine and playback fails with a security warning instead of a 404.
     entrypoint: "certbot certonly --webroot -w /var/www/certbot \
     --email ${REACT_APP_ADMIN_EMAIL} \
-    -d ${DOMAIN_NAME} -d www.${DOMAIN_NAME} -d api.${DOMAIN_NAME} -d admin.${DOMAIN_NAME} -d account.${DOMAIN_NAME} \
+    -d ${DOMAIN_NAME} -d www.${DOMAIN_NAME} -d api.${DOMAIN_NAME} -d admin.${DOMAIN_NAME} -d account.${DOMAIN_NAME} -d media.${DOMAIN_NAME} \
     --rsa-key-size 4096 \
     --agree-tos \
     --force-renewal"

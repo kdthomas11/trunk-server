@@ -17,7 +17,7 @@ limit_req_status 429;
 
 server {
 	listen 80;
-	server_name account.${DOMAIN_NAME} api.${DOMAIN_NAME} admin.${DOMAIN_NAME} www.${DOMAIN_NAME} ${DOMAIN_NAME};
+	server_name account.${DOMAIN_NAME} api.${DOMAIN_NAME} admin.${DOMAIN_NAME} media.${DOMAIN_NAME} www.${DOMAIN_NAME} ${DOMAIN_NAME};
 	include /etc/nginx/security-headers.conf;
 	# Upstream hostnames held in variables so nginx resolves them per request
 	# instead of caching the address from config load. See the resolver in
@@ -281,4 +281,62 @@ server {
 			include /etc/nginx/proxy.conf;
 			access_log    off; 
 		}
+}
+
+# Call audio, served out of MinIO.
+#
+# Until this block existed the prod stack had no media vhost at all, although
+# the CSP above already allowed https://media.${DOMAIN_NAME} in media-src and
+# connect-src. S3_PUBLIC_URL is baked into every call's stored `url` at upload
+# time, so without somewhere to serve it those URLs are permanently dead - not
+# just unavailable until the next deploy.
+#
+# The certificate is the single ${DOMAIN_NAME} one, so media.${DOMAIN_NAME}
+# must be among its SANs: certbot-compose.yml issues it with -d for this host.
+server {
+	listen 443 ssl;
+	ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+	ssl_protocols TLSv1.2 TLSv1.3;
+	ssl_prefer_server_ciphers on;
+	ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:DHE-RSA-CHACHA20-POLY1305';
+	ssl_session_timeout 1d;
+	ssl_session_cache shared:SSL:50m;
+	ssl_stapling on;
+	ssl_stapling_verify on;
+	add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
+
+	server_name media.${DOMAIN_NAME};
+	include /etc/nginx/security-headers.conf;
+	# Upstream hostnames held in variables so nginx resolves them per request
+	# instead of caching the address from config load. See the resolver in
+	# nginx.conf. Recreating a container changes its IP; without this nginx
+	# keeps dialling the old one and returns 502 until it is reloaded.
+	set $upstream_frontend frontend;
+	set $upstream_backend backend;
+	set $upstream_account account;
+	set $upstream_admin admin;
+	set $upstream_minio minio;
+
+
+	location /.well-known/acme-challenge/ {
+		root /var/www/certbot;
+	}
+
+	# Audio only. MinIO's admin console listens on 9001 and is not proxied
+	# anywhere - it has no business being reachable from the internet.
+	location / {
+		proxy_pass http://$upstream_minio:9000$request_uri;
+		include /etc/nginx/proxy.conf;
+		# proxy.conf already sets "Host $host". Setting Host again here made
+		# nginx emit two Host headers, and Go's net/http rejects that with a
+		# bare text/plain "400 Bad Request" - which looks like a MinIO error
+		# but is really a malformed proxied request.
+		proxy_http_version 1.1;
+		proxy_set_header Connection "";
+		# Audio is streamed and seeked with Range requests - buffering whole
+		# objects through nginx only adds latency and memory churn.
+		proxy_buffering off;
+		access_log /dev/stdout main;
+	}
 }

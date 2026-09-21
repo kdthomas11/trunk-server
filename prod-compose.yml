@@ -1,0 +1,85 @@
+# Production overlay: adds the MinIO object store to the base stack.
+#
+# Kept separate, exactly as local-compose.yml is, because the base file is
+# shared by every stage and two of them must NOT get a MinIO container:
+# docker-test.sh runs docker-compose.yml + test-compose.yml, and
+# `docker-local.sh --cloud` drops the MinIO layer on purpose to check parity
+# against real object storage. Putting these services in the base file would
+# start a store both of those deliberately do without.
+#
+# Applied by ./docker-prod.sh.
+services:
+  # Object storage. Until this file existed the prod stack had none - MinIO was
+  # defined only in local-compose.yml, which the prod wrapper does not load - so
+  # every S3 setting in prod.env named a service that was not running.
+  #
+  # Pinned by digest, not :latest, for the same reason the Node images are -
+  # a floating tag moves the server underneath a deploy. This is
+  # RELEASE.2025-09-07T16-13-09Z.
+  minio:
+    image: "minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+    command: server /data --console-address ":9001"
+    environment:
+      # No defaults on purpose. local-compose.yml hardcodes minioadmin for
+      # convenience; doing that here would put a known root credential on a
+      # public host. These must also match the key pair in the S3_PROFILE
+      # section of ~/.aws/credentials, which is how the backend and the
+      # transcriber authenticate - see prod.env.example.
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+    volumes:
+      - ${PWD}/data/minio:/data
+    # Deliberately no published ports. nginx reaches this over the "proxy"
+    # network and serves audio through the media.${DOMAIN_NAME} vhost;
+    # publishing 9000 would route around nginx and TLS, and publishing 9001
+    # would put the admin console on the internet.
+    networks:
+      - node
+      - proxy
+    restart: always
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: syslog
+      options:
+        tag: "minio"
+
+  # One-shot: create the bucket and make it anonymously readable.
+  #
+  # Public-read is deliberate and is the decision the player depends on:
+  # controllers/calls.js hands the browser the stored bucket URL, and
+  # WaveSurfer fetches it without credentials. The account gate therefore
+  # covers the API and metadata but not the audio bytes, whose keys are
+  # predictable. Serving audio same-origin is the proper fix and is not done
+  # yet - do not "harden" this to private without changing the players first,
+  # or playback stops.
+  minio-init:
+    image: "minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+      - S3_BUCKET
+    # Credentials are passed through the environment rather than written into
+    # the command, so they do not show up in `docker inspect` output or in the
+    # process list on the host.
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" &&
+      mc mb --ignore-existing local/$$S3_BUCKET &&
+      mc anonymous set download local/$$S3_BUCKET &&
+      echo \"MinIO bucket $$S3_BUCKET ready (public read - the audio urls are public, the API is gated)\"
+      "
+    networks:
+      - node
+    restart: "no"
+    logging:
+      driver: syslog
+      options:
+        tag: "minio-init"
+

@@ -53,9 +53,18 @@ Branch is `local-dev`. `origin` is the fork, `upstream` is openmhz.
 ./docker-prod.sh  …              # production (reads prod.env)
 ```
 
+MinIO is a **layer**, never part of the base file: `local-compose.yml` adds it
+for local dev and `prod-compose.yml` adds it for production. `docker-compose.yml`
+is shared by every stage, and two of them must run without a store —
+`docker-test.sh`, and `docker-local.sh --cloud`, which drops the layer on
+purpose to check parity against real object storage. Put MinIO in the base and
+both silently gain a container they were written to do without.
+
 Use `docker-local.sh` locally. `docker-test.sh` omits `local-compose.yml`,
-which silently drops `S3_FORCE_PATH_STYLE` and `OTEL_SDK_DISABLED` — that
-combination once broke MinIO uploads in a way that looked like data loss.
+which silently drops `OTEL_SDK_DISABLED` — and used to drop
+`S3_FORCE_PATH_STYLE` too, a combination that once broke MinIO uploads in a way
+that looked like data loss. `S3_FORCE_PATH_STYLE` now reaches the backend from
+`docker-compose.yml`, so that half is fixed for every stage.
 
 After **adding a dependency or rebuilding a React bundle**, rebuilding the image
 is not enough:
