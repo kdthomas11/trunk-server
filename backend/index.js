@@ -1,4 +1,12 @@
 const tracing = require("./agents/otel-tracing");
+
+// Before the controllers, which is the point. media.js and uploads.js build an
+// S3 client at require time, so an env file missing S3_REGION fails there first
+// with "Region is missing" and no clue which service or variable is meant. This
+// names the variable instead. Every S3 setting is required and none has a
+// default - see config/s3.js.
+require("./config/s3").assertConfigured();
+
 var express = require("express");
 var configureExpress = require("./config/express");
 
@@ -11,7 +19,7 @@ var talkgroups = require("./controllers/talkgroups");
 var stats = require("./controllers/stats");
 var sys_stats = require("./sys_stats");
 var config = require('./config/config.json');
-let db = require('./db')
+let retention = require('./retention')
 var schedule = require('node-schedule');
 var mongoose = require("mongoose");
 const { ObjectId } = require('mongodb');
@@ -378,10 +386,14 @@ io.sockets.on('connection', function (client) {
 });
 
 stats.init_stats();
+// Retention. Removes calls past the archive window AND deletes their audio
+// from the object store, except for calls a listener has starred - those stay
+// until the last star is removed. See retention.js.
+//
 // This will run at 3am each day.
 // IF you don't set the minute to 0, it will run every minute while it is still 3, so at 3:01, 3:02... etc
 schedule.scheduleJob('0 3 * * *', function() {
-  db.cleanOldCalls();
+  retention.cleanOldCalls();
 });
 
 

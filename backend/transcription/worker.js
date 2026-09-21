@@ -11,15 +11,14 @@
  * both the ingest hot path and the read API, and this project has already
  * learned once what happens when slow work shares that event loop.
  */
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { fromIni } = require('@aws-sdk/credential-providers');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { transcribe, TranscribeError, WHISPER_URL } = require('./client');
-
-const s3_endpoint = process.env['S3_ENDPOINT'] ?? 'https://s3.us-west-1.wasabisys.com';
-const s3_region = process.env['S3_REGION'] ?? 'us-west-1';
-const s3_bucket = process.env['S3_BUCKET'] ?? 'openmhz-west';
-const s3_profile = process.env['S3_PROFILE'] ?? 'wasabi-account';
-const s3_force_path_style = (process.env['S3_FORCE_PATH_STYLE'] ?? 'false') === 'true';
+// Settings and client both come from config/s3.js, the only place the S3_*
+// variables are read. This file used to keep its own copy, defaulting to
+// upstream openmhz's Wasabi bucket whenever they were unset. Because this runs
+// as its own process it is not covered by the backend's startup check, so
+// ../transcribe-worker.js - the entrypoint - calls assertConfigured() itself.
+const { s3Client, bucket: s3_bucket } = require('../config/s3');
 
 const POLL_INTERVAL_MS = parseInt(process.env['TRANSCRIBE_POLL_MS'] ?? '2000', 10);
 const MAX_ATTEMPTS = parseInt(process.env['TRANSCRIBE_MAX_ATTEMPTS'] ?? '3', 10);
@@ -34,14 +33,6 @@ const MAX_AGE_MS = parseInt(process.env['TRANSCRIBE_MAX_AGE_MS'] ?? String(2 * 6
 const BREAKER_MS = parseInt(process.env['TRANSCRIBE_BREAKER_MS'] ?? '30000', 10);
 // How often to retire calls that aged past the claim cutoff.
 const SWEEP_INTERVAL_MS = parseInt(process.env['TRANSCRIBE_SWEEP_MS'] ?? String(30 * 60 * 1000), 10);
-
-const client = new S3Client({
-  credentials: fromIni({ profile: s3_profile }),
-  endpoint: s3_endpoint,
-  region: s3_region,
-  maxAttempts: 2,
-  forcePathStyle: s3_force_path_style,
-});
 
 let stopping = false;
 let breakerUntil = 0;
@@ -80,7 +71,7 @@ async function claim(Call) {
 }
 
 async function fetchAudio(call) {
-  const result = await client.send(new GetObjectCommand({
+  const result = await s3Client().send(new GetObjectCommand({
     Bucket: call.bucket || s3_bucket,
     Key: call.objectKey,
   }));

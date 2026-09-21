@@ -156,7 +156,11 @@ async function getCalls(req, res, next) {
                 title = tg.description;
               }
               const callId = req.query["call-id"];
-              const callUrl = "https://s3.us-west-1.wasabisys.com/openmhz-west/media/dcfd-1039-1613917169.m4a"
+              // A `callUrl` const sat here holding a hardcoded
+              // s3.us-west-1.wasabisys.com address for one of upstream
+              // openmhz's own recordings. Nothing read it - the card streams
+              // `item.url` below - so it was a dead pointer at a bucket this
+              // fork has never owned.
               const twitterMeta = `
             <meta name="twitter:card" content="player"/>
             <meta name="twitter:site" content="@openmhz"/>

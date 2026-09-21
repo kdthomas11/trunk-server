@@ -252,6 +252,34 @@ reloaded. Fixed with a `resolver` plus a variable in `proxy_pass` — keep the
 **index.html must not be cached**, or browsers keep running an old bundle after
 a deploy while the server looks correct.
 
+**Do not put a lifecycle rule on the audio bucket.** `backend/retention.js`
+deletes call audio itself, at 3am, alongside the call document. A rule on object
+age would duplicate that and — the reason it matters — cannot be told about
+exceptions, so it would expire the audio of starred calls the sweep is
+deliberately keeping. The listener would still see the call and get a 404 on
+play. `DEPLOY-PLAN.md` told you to add such a rule; that instruction is void.
+MinIO has `mc ilm`, so this stays possible and stays wrong.
+
+**S3 settings have no defaults.** `backend/config/s3.js` is the only place the
+`S3_*` variables are read, and it throws if `S3_ENDPOINT`, `S3_REGION`,
+`S3_BUCKET` or `S3_PROFILE` is unset **or blank** — blank because docker-compose
+passes a declared-but-unset variable through as `""`, which `??` does not catch.
+`index.js` calls `assertConfigured()` before requiring the controllers, since
+`media.js` and `uploads.js` build clients at load and would otherwise fail first
+with `Region is missing` and name neither the service nor the variable. The
+transcriber is a separate process, so `transcribe-worker.js` checks too.
+
+Until this landed, `controllers/media.js`, `controllers/uploads.js`,
+`transcription/worker.js` and `scripts/make-media-private.js` each kept their
+own copy of the block, all four defaulting to `openmhz-west` on
+`s3.us-west-1.wasabisys.com` — upstream's bucket, never ours. Ingest keeps its
+own client (`createS3Client`) for the keep-alive agent; everything else shares
+`s3Client()`.
+
+**MinIO frees disk on a delay.** Deleted objects go to `.minio.sys/tmp/.trash`
+and are reclaimed later, so the bucket shrinks at once but `du` does not. A
+retention sweep's worth of audio can sit there for a while; that is not a leak.
+
 ## Work done in this fork
 
 - Dependency upgrades: 93 advisories → 46, every reachable one cleared.
@@ -286,6 +314,19 @@ a deploy while the server looks correct.
   was no way back except editing the address bar.
 - Starred calls are per listener (`backend/models/starred_call.js`). They used
   to be a counter on the call shared by everyone.
+- Retention rewritten as `backend/retention.js`, replacing `db.cleanOldCalls()`.
+  Three changes. It deletes the audio as well as the call document — the old
+  sweep deleted only the document, and audio was left to a lifecycle rule
+  configured by hand in the object store, so on any deployment without that rule
+  (including all of local dev) every expired call orphaned its `.m4a` in the
+  bucket — unreachable, invisible, and paid for indefinitely. Starred calls are
+  exempt and
+  survive until the last star is removed, which is only possible *because* the
+  app deletes the audio: a rule on object age cannot make exceptions. And the
+  cutoff is 30 whole days rather than `setMonth(getMonth() - 1)`, which was 28
+  to 31 days depending on the month it ran in. `mongo/clean.js` is retired for
+  both of the first two reasons; `backend/scripts/delete-orphaned-audio.js`
+  clears the backlog the old sweep left.
 - Removed the Trending section from the systems list.
 - Trimmed the call info pane of things that only mean something on a trunked
   system: the `-1[0]` source list, the duplicated frequency statistic, the

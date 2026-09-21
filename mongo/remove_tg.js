@@ -1,65 +1,37 @@
-const B2 = require('backblaze-b2');
-const { MongoClient } = require("mongodb");
-
-// Replace the uri string with your connection string.
-const uri = "mongodb://localhost:27017";
-const client = new MongoClient(uri);
-
-
-
-const b2 = new B2({
-    applicationKeyId: '', // or accountId: 'accountId'
-    applicationKey: '' // or masterApplicationKey
-  });
-
-
-  async function GetBucket() {
-  try {
-    await b2.authorize(); // must authorize first (authorization lasts 24 hrs)
-    let response = await b2.getBucket({ bucketName: 'openmhz-s3' });
-    console.log(response.data);
-    bucketId = response.data.buckets[0].bucketId;
-    console.log(bucketId)
-    return bucketId;
-  } catch (err) {
-    console.log('Error getting bucket:', err);
-  }
-}
-
-async function run() {
-  try {
-    let bucketId = await GetBucket();
-    const database = client.db('scanner');
-    const calls = database.collection('calls');
-    await b2.authorize(); 
-    // Query for a movie that has the title 'Back to the Future'
-    const query = {
-        shortName: "hennearmer",
-        talkgroupNum: 3423};
-    // Execute query 
-    const cursor = calls.find(query);
-    // Print a message if no documents were found
-    if ((await calls.countDocuments(query)) === 0) {
-      console.log("No documents found!");
-    }
-    // Print returned documents
-    for await (const doc of cursor) {
-      console.dir(doc);
-      let response = await b2.hideFile({
-        bucketId: bucketId,
-        fileName: doc.objectKey
-        // ...common arguments (optional)
-
-    });
-    console.log(response.data);
-    }
-    const result = await calls.deleteMany(query);
-    // Print the number of deleted documents
-    console.log("Deleted " + result.deletedCount + " documents");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-  }
-}
-
-run().catch(console.dir);
+/**
+ * Retired. Does nothing on purpose.
+ *
+ * This deleted every call on one talkgroup and hid the matching files in
+ * Backblaze B2. Four things were wrong with it, and none of them announced
+ * itself:
+ *
+ *   1. B2 is not the object store here - self-hosted MinIO is - and
+ *      `backblaze-b2` is not a dependency of any service, so this died at
+ *      `require` before reaching a single line of its own logic.
+ *   2. Its credentials were empty strings and its bucket was `openmhz-s3`,
+ *      upstream openmhz's, not ours.
+ *   3. The system and talkgroup were hardcoded to `hennearmer` / 3423 -
+ *      upstream's again - so running it meant editing it first.
+ *   4. It deleted call documents while leaving their audio, which is exactly
+ *      the orphan problem backend/retention.js was written to stop.
+ *
+ * Replaced by backend/scripts/remove-talkgroup.js, which takes the system and
+ * talkgroup as arguments, deletes the audio from MinIO before the documents,
+ * and skips calls a listener has starred unless told otherwise:
+ *
+ *   docker exec hamrecorder-backend-1 node /home/app/scripts/remove-talkgroup.js \
+ *     --system <shortName> --talkgroup <num> --dry-run
+ *
+ * Kept rather than removed so a runbook still pointing here fails loudly.
+ */
+print("");
+print("remove_tg.js is retired and has deleted nothing.");
+print("");
+print("It hid files in Backblaze B2 - not the object store this uses - and");
+print("deleted call documents without their audio. Use:");
+print("");
+print("  docker exec hamrecorder-backend-1 node /home/app/scripts/remove-talkgroup.js \\");
+print("    --system <shortName> --talkgroup <num> --dry-run");
+print("");
+print("It skips starred calls unless you pass --include-starred.");
+print("");

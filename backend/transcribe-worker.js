@@ -20,6 +20,14 @@ function redactedUrl(url) {
 }
 
 async function main() {
+  // This process fetches audio from the object store, and none of the S3
+  // settings has a default any more - they used to fall back to upstream
+  // openmhz's Wasabi bucket. The backend checks these at its own startup, but
+  // this is a separate process with a separate command, so it checks too.
+  // Before Mongo, so a broken env file fails on the first line rather than
+  // after a connection that looked like progress.
+  require('./config/s3').assertConfigured();
+
   await mongoose.connect(mongoUrl);
   console.log(new Date().toISOString(), '[transcriber]', `connected to ${redactedUrl(mongoUrl)}`);
 

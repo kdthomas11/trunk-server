@@ -11,23 +11,18 @@
  * Sets each object back to private. Safe to re-run - setting private on an
  * already-private object is a no-op.
  */
-const { S3Client, ListObjectsV2Command, PutObjectAclCommand } = require("@aws-sdk/client-s3");
-const { fromIni } = require("@aws-sdk/credential-providers");
-
-const s3_endpoint = process.env['S3_ENDPOINT'] ?? 'https://s3.us-west-1.wasabisys.com';
-const s3_region = process.env['S3_REGION'] ?? 'us-west-1';
-const s3_bucket = process.env['S3_BUCKET'] ?? 'openmhz-west';
-const s3_profile = process.env['S3_PROFILE'] ?? 'wasabi-account';
-const s3_force_path_style = (process.env['S3_FORCE_PATH_STYLE'] ?? 'false') === 'true';
+const { ListObjectsV2Command, PutObjectAclCommand } = require("@aws-sdk/client-s3");
+// Settings and client both come from config/s3.js, the only place the S3_*
+// variables are read. This script kept its own copy, defaulting to upstream
+// openmhz's Wasabi bucket - a worse default here than anywhere, since this
+// rewrites ACLs across a whole bucket. s3Client() refuses to build against an
+// unconfigured environment, so a missing variable stops this before it lists
+// a single object.
+const { s3Client, bucket: s3_bucket, endpoint: s3_endpoint } = require("../config/s3");
 
 const dryRun = process.argv.includes('--dry-run');
 
-const client = new S3Client({
-  credentials: fromIni({ profile: s3_profile }),
-  endpoint: s3_endpoint,
-  region: s3_region,
-  forcePathStyle: s3_force_path_style,
-});
+const client = s3Client();
 
 async function main() {
   console.log(`Bucket: ${s3_bucket} at ${s3_endpoint}${dryRun ? '  (dry run)' : ''}`);

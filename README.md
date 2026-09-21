@@ -290,11 +290,62 @@ db.users.updateOne(
 
 
 There are a few scripts included with the container:
-- **clean.js** This script removes all Calls that are over 30 days old
+- **clean.js** Retired. It deleted call documents but never their audio, and it
+  could not see starred calls. It now prints an explanation and deletes nothing.
+- **remove_tg.js** Retired. It hid files in Backblaze B2 — not the store this
+  uses — deleted call documents without their audio, and had the system and
+  talkgroup hardcoded to one of upstream's. Replaced by
+  `backend/scripts/remove-talkgroup.js`, below.
 - **totals.js** Lists different system stats
 
+### Removing one talkgroup's calls
+
+Deletes every call on a talkgroup **and its audio**, skipping calls a listener
+has starred:
+
+```
+docker exec hamrecorder-backend-1 node /home/app/scripts/remove-talkgroup.js \
+  --system <shortName> --talkgroup <num> --dry-run
+```
+
+Drop `--dry-run` to apply. Add `--include-starred` to take starred calls too —
+for a talkgroup recorded in error, or a takedown — and it reports how many that
+was. The talkgroup record itself is left alone; only calls are removed.
+
+### Retention
+
+`backend/retention.js` runs at 3am each day from `backend/index.js`. It deletes
+every call past `REACT_APP_ARCHIVE_DAYS` (30) **and that call's audio from the
+object store**, so nothing is left behind in the bucket.
+
+A call any listener has starred is exempt and is kept indefinitely. Remove the
+last star and it falls back under the policy, so the next sweep takes it.
+
+To run it by hand — `dryRun` reports what it would do without deleting anything:
+
+```
+docker exec hamrecorder-backend-1 node -e \
+  "require('/home/app/retention').cleanOldCalls({ dryRun: true })"
+```
+
+**Disk does not drop straight away.** MinIO stages deleted objects in
+`.minio.sys/tmp/.trash` and reclaims them on its own schedule, so the bucket
+directory shrinks immediately while total disk usage lags. Clearing the 4,211
+orphans below freed 407 MB from the bucket and left the same 407 MB in trash for
+some time afterwards. Plan headroom for a sweep's worth of audio still on disk;
+restarting MinIO runs the cleanup on startup if it has not happened on its own.
+
+Before this existed, audio was only ever deleted by a lifecycle rule configured
+by hand in the object store, so every expired call left its `.m4a` behind with
+no document naming the key. To clear that backlog once:
+
+```
+docker exec hamrecorder-backend-1 node /home/app/scripts/delete-orphaned-audio.js --dry-run
+docker exec hamrecorder-backend-1 node /home/app/scripts/delete-orphaned-audio.js
+```
+
 ### Compact a collection
-When you run clean.js it doesn't actually remove the files off storge. You can use this command from the mongo cli tool.
+Deleting calls does not shrink the database files on disk. You can use this command from the mongo cli tool.
 
 First, launch the tool: `mongo`
 Then switch to the scanner db: `use scanner`

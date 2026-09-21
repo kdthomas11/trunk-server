@@ -11,27 +11,18 @@
  * URL once the listener has been checked. The player needs no changes - it
  * still just plays call.url.
  */
-const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
-const { fromIni } = require("@aws-sdk/credential-providers");
+const { GetObjectCommand } = require("@aws-sdk/client-s3");
 const path = require("path");
 const { ObjectId } = require("mongodb");
 
 const Call = require("../models/call");
-
-const s3_endpoint = process.env['S3_ENDPOINT'] ?? 'https://s3.us-west-1.wasabisys.com';
-const s3_region = process.env['S3_REGION'] ?? 'us-west-1';
-const s3_bucket = process.env['S3_BUCKET'] ?? 'openmhz-west';
-const s3_profile = process.env['S3_PROFILE'] ?? 'wasabi-account';
-const s3_force_path_style = (process.env['S3_FORCE_PATH_STYLE'] ?? 'false') === 'true';
-
+// Settings and client both come from config/s3.js, the only place this service
+// reads the S3_* variables. This file used to keep its own copy, defaulting to
+// upstream openmhz's Wasabi bucket whenever they were unset.
+//
 // Reads from the store over the internal address - this is a server-side fetch,
 // so it never needs the browser-reachable one.
-const s3 = new S3Client({
-  credentials: fromIni({ profile: s3_profile }),
-  endpoint: s3_endpoint,
-  region: s3_region,
-  forcePathStyle: s3_force_path_style,
-});
+const { s3Client, bucket: s3_bucket } = require("../config/s3");
 
 /**
  * The URL handed to the player for a call. Points at this service, not the
@@ -93,7 +84,7 @@ exports.get_media = async function (req, res) {
   // bytes from this origin keeps it to one hop with CORS that already works.
   let out;
   try {
-    out = await s3.send(new GetObjectCommand({
+    out = await s3Client().send(new GetObjectCommand({
       Bucket: bucket,
       Key: key,
       // Forwarded so seeking works - media elements ask for byte ranges.

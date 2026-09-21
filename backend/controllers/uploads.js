@@ -7,8 +7,7 @@ const  talkgroupSchema  = require("../models/talkgroupSchema");
 const  callSchema  = require("../models/callSchema");
 const { trace, context } = opentelemetry;
 const mongoose = require("mongoose");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const { fromIni } = require("@aws-sdk/credential-providers");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const media = require('./media');
 const { keysMatch } = require('../middleware/auth');
@@ -18,14 +17,12 @@ const agent = new https.Agent({
   maxSockets: 250,
 });
 
-const s3_endpoint = process.env['S3_ENDPOINT'] ?? 'https://s3.us-west-1.wasabisys.com';
-const s3_region = process.env['S3_REGION'] ?? 'us-west-1';
-const s3_bucket = process.env['S3_BUCKET'] ?? 'openmhz-west';
-const s3_profile = process.env['S3_PROFILE'] ?? 'wasabi-account';
-const s3_public_url = process.env['S3_PUBLIC_URL'] ?? `${s3_endpoint}/${s3_bucket}`;
-// MinIO (and some other S3-compatible stores) only serve path-style requests.
-// Wasabi/AWS use virtual-host style, so this stays off unless asked for.
-const s3_force_path_style = (process.env['S3_FORCE_PATH_STYLE'] ?? 'false') === 'true';
+// Settings come from config/s3.js, the only place this service reads the S3_*
+// variables. This file used to keep its own copy, defaulting to upstream
+// openmhz's Wasabi bucket whenever they were unset - including S3_PUBLIC_URL,
+// which is baked into every call's stored `url` and so would have been wrong
+// for good on any call written while the environment was broken.
+const { createS3Client, endpoint: s3_endpoint, bucket: s3_bucket, publicUrl: s3_public_url } = require("../config/s3");
 // Shorter than this is a kerchunk - a keyed mic with nothing said - and is
 // marked skipped rather than queued for transcription.
 const TRANSCRIBE_MIN_LEN = parseFloat(process.env['TRANSCRIBE_MIN_LEN'] ?? '1.5');
@@ -57,16 +54,30 @@ mongo_conn_fast.model('Talkgroup', talkgroupSchema);
 
 
 
-const client = new S3Client({
-  requestHandler: new NodeHttpHandler({
-    httpsAgent: agent,
-  }),
-  credentials: fromIni({ profile: s3_profile }),
-  endpoint: s3_endpoint,
-  region: s3_region,
-  maxAttempts: 2,
-  forcePathStyle: s3_force_path_style,
-});
+/**
+ * Ingest keeps its own client rather than sharing config/s3.js's.
+ *
+ * Every recording from every trunk-recorder goes through here, so the 250
+ * socket keep-alive agent above matters; the shared client uses the SDK's
+ * default handler. Everything else about it - credentials, endpoint, region,
+ * retries, path style - comes from the same settings as the rest of the
+ * service.
+ *
+ * Built on first use, not at require time, so that requiring this module never
+ * depends on the environment being configured.
+ */
+let client;
+
+function uploadClient() {
+  if (!client) {
+    client = createS3Client({
+      requestHandler: new NodeHttpHandler({
+        httpsAgent: agent,
+      }),
+    });
+  }
+  return client;
+}
 
 // Multer has already written the upload to disk by the time this handler runs -
 // including for requests that turn out to be unauthenticated - so every early
@@ -260,7 +271,7 @@ exports.upload = async function (req, res, next) {
               Key: object_key,
               Body: fileContent,
             });
-            var result = await client.send(command);
+            var result = await uploadClient().send(command);
             if (result && result.$metadata.httpStatusCode !== 200) {
               console.error(`[${shortName}] Upload Error status code: ${result.$metadata.httpStatusCode}`);
               console.error(result);

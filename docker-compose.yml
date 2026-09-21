@@ -102,6 +102,15 @@ services:
       - S3_PROFILE
       - S3_REGION
       - S3_PUBLIC_URL
+      # Required for MinIO. Was only ever set in local-compose.yml, so the prod
+      # stack addressed the bucket as a subdomain and could not reach it - the
+      # transcriber below had it and the backend did not.
+      - S3_FORCE_PATH_STYLE
+      # Retention. ARCHIVE_DAYS overrides; REACT_APP_ARCHIVE_DAYS is the number
+      # the player already prints, and retention.js reads it so the promise on
+      # the page and the sweep that enforces it cannot drift apart.
+      - ARCHIVE_DAYS
+      - REACT_APP_ARCHIVE_DAYS
       - HONEYCOMB_API_KEY
     volumes:
       - "~/.aws:/home/app/.aws"
