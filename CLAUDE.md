@@ -257,8 +257,7 @@ deletes call audio itself, at 3am, alongside the call document. A rule on object
 age would duplicate that and — the reason it matters — cannot be told about
 exceptions, so it would expire the audio of starred calls the sweep is
 deliberately keeping. The listener would still see the call and get a 404 on
-play. `DEPLOY-PLAN.md` told you to add such a rule; that instruction is void.
-MinIO has `mc ilm`, so this stays possible and stays wrong.
+play. MinIO has `mc ilm`, so this stays possible and stays wrong.
 
 **S3 settings have no defaults.** `backend/config/s3.js` is the only place the
 `S3_*` variables are read, and it throws if `S3_ENDPOINT`, `S3_REGION`,

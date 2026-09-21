@@ -3,12 +3,12 @@
  * them - unless somebody has starred them.
  *
  * Replaces db.cleanOldCalls(), which deleted the Call document and nothing
- * else. Audio was only ever removed by a lifecycle rule configured by hand in
- * the object store (DEPLOY-PLAN.md), so on every deployment without that rule -
- * including local dev, where minio-init sets no ilm policy - the .m4a files
- * accumulated forever. Worse, they accumulated *unreachable*: the sweep deleted
- * the only document that named the object key, so the bytes stayed in the
- * bucket with nothing pointing at them.
+ * else. Nothing anywhere deleted the audio: no code path did, and no lifecycle
+ * rule was ever configured on the bucket - minio-init sets no ilm policy - so
+ * the .m4a files accumulated forever. Worse, they accumulated *unreachable*:
+ * the sweep deleted the only document that named the object key, so the bytes
+ * stayed in the bucket with nothing pointing at them. 4,211 such objects, 407
+ * MB, had built up in dev by the time this was written.
  *
  * Deleting audio here rather than in a lifecycle rule is also what makes
  * starring able to keep a call at all. A rule on object age cannot be told

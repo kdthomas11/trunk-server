@@ -335,9 +335,9 @@ orphans below freed 407 MB from the bucket and left the same 407 MB in trash for
 some time afterwards. Plan headroom for a sweep's worth of audio still on disk;
 restarting MinIO runs the cleanup on startup if it has not happened on its own.
 
-Before this existed, audio was only ever deleted by a lifecycle rule configured
-by hand in the object store, so every expired call left its `.m4a` behind with
-no document naming the key. To clear that backlog once:
+Before this existed, nothing deleted the audio at all — no code path did, and no
+lifecycle rule was ever set on the bucket — so every expired call left its
+`.m4a` behind with no document naming the key. To clear that backlog once:
 
 ```
 docker exec hamrecorder-backend-1 node /home/app/scripts/delete-orphaned-audio.js --dry-run
