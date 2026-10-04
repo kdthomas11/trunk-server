@@ -582,6 +582,10 @@ exports.createSystem = async function (req, res, next) {
   }))(res.locals);
   system.key = key;
   system.userId = new mongoose.Types.ObjectId(req.user._id);
+  // The public Systems list only shows systems active in the last 30 days, and
+  // lastActive is otherwise first set when a call arrives. Stamping it here lets
+  // a new system appear straight away; it drops off if it never uploads.
+  system.lastActive = new Date();
   const newSys = await System.create(system).catch(err => {
 
     console.error(err);
