@@ -9,6 +9,7 @@ import {
   Statistic,
   Icon
 } from "semantic-ui-react";
+import { sourceLabel } from "./sourceTags";
 
 // Conventional ham systems have no real talkgroups, so the talkgroup number is
 // used to carry the repeater frequency in kHz (145430 -> "145.430 MHz").
@@ -61,8 +62,10 @@ function CallInfoPane(props) {
     // conventional repeater has none, so trunk-recorder writes src "-1" at
     // position 0 and the pane filled up with "-1[0]" for every call. Show only
     // real units, so this still works if a trunked system is ever added.
-    const realSources = (currentCall.srcList || []).filter(source => Number(source.src) > 0);
-    srcList = realSources.map((source, index) => <List.Item key={index}>{source.src}[{source.pos}]</List.Item>);
+    // D-Star and YSF have no unit ID either, but do send a callsign as the
+    // tag, so a source with a tag is shown by that instead.
+    const realSources = (currentCall.srcList || []).filter(source => Number(source.src) > 0 || source.tag);
+    srcList = realSources.map((source, index) => <List.Item key={index}>{sourceLabel(source)}[{source.pos}]</List.Item>);
     callLength = currentCall.len;
 
     // Patches are talkgroups a trunked dispatcher has tied together. Nothing

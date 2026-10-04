@@ -11,6 +11,7 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const media = require('./media');
 const { keysMatch } = require('../middleware/auth');
+const { clean_src_list } = require('./source-list');
 const https = require('https');
 
 const agent = new https.Agent({
@@ -136,7 +137,7 @@ exports.upload = async function (req, res, next) {
 
         let srcList = [];
         try {
-          srcList = JSON.parse(req.body.source_list);
+          srcList = clean_src_list(JSON.parse(req.body.source_list));
         } catch (err) {
           console.warn(`[${req.params.shortName}] Error /:shortName/upload Parsing Source/Freq List - Error: ${err}`);
           discardTempFile(req);

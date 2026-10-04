@@ -1,6 +1,9 @@
 var mongoose = require('mongoose');
 
-var srcSchema = mongoose.Schema({ pos: Number, src: String });
+// tag is trunk-recorder's name for whoever keyed up: a unit alias on a trunked
+// system, or the callsign a D-Star / YSF radio sends in its header (for
+// example N6KEN/ID-52). Without it in the schema mongoose dropped it silently.
+var srcSchema = mongoose.Schema({ pos: Number, src: String, tag: String });
 
 // One line per spoken passage. Not sent to the browser yet - they cost three or
 // four times the plain text and nothing renders them - but they are what

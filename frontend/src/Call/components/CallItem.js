@@ -11,6 +11,7 @@ import {
 import { addStar, removeStar } from "../../features/calls/callsSlice";
 import { addToPlaylist, removeFromPlaylist } from '../../features/callPlayer/callPlayerSlice';
 import { useDispatch, useSelector } from 'react-redux'
+import { callTags } from "./sourceTags";
 
 const CallItem = (props) => {
   const call = props.call;
@@ -106,6 +107,10 @@ const CallItem = (props) => {
     talkgroup = talkgroups.talkgroups[call.talkgroupNum].description;
   }
 
+  // Who transmitted, when the radio said so (D-Star / YSF callsigns).
+  const tags = callTags(call);
+  const tagStyle = { fontSize: "0.85em", opacity: 0.7 };
+
   const cirlceStyle = {width:"4px",
               margin:"6px",
               height: "4px",
@@ -124,7 +129,10 @@ const CallItem = (props) => {
     <Table.Row draggable="true" onClick={(e) => props.onClick({ call: call }, e)} {...rowSelected} onDragStart={onDragStart} data-callid={call._id}>
       <Table.Cell>{playStatus}</Table.Cell>
       <Table.Cell>{call.len}</Table.Cell>
-      <Table.Cell>{talkgroup}</Table.Cell>
+      <Table.Cell>
+        {talkgroup}
+        {tags.length > 0 && <div style={tagStyle}>{tags.join(", ")}</div>}
+      </Table.Cell>
       <Table.Cell>{`${time.toLocaleTimeString()} ${time.toLocaleDateString() !== new Date().toLocaleDateString() ? time.getMonth() + 1 + '/' + time.getDate() : ''}`}</Table.Cell> 
       <Table.Cell onMouseEnter={() => setStarVisible(true)} onMouseLeave={() => setStarVisible(false)} onClick={handleStarClicked}>{starButton}</Table.Cell>
       {buildingPlaylist && <Table.Cell>    <FormField>

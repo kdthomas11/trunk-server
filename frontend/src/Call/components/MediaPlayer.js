@@ -19,6 +19,7 @@ import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.js';
 
 import { is } from "date-fns/locale";
 import "./MediaPlayer.css";
+import { sourceLabel } from "./sourceTags";
 
 
 
@@ -139,7 +140,7 @@ const MediaPlayer = (props) => {
 
   if (call) {
     if (call.srcList.length > sourceIndex) {
-      sourceId = call.srcList[sourceIndex].src;
+      sourceId = sourceLabel(call.srcList[sourceIndex]);
     }
     playEnabled = {};
   }
@@ -318,7 +319,7 @@ const MediaPlayer = (props) => {
   
     if (call) {
       if (call.srcList.length > sourceIndex) {
-        sourceId = call.srcList[sourceIndex].src;
+        sourceId = sourceLabel(call.srcList[sourceIndex]);
       }
       playEnabled = {};
     }
